@@ -130,7 +130,7 @@ function glp_admin_page() {
 		<h2>Version &amp; Updates</h2>
 		<table class="widefat striped" style="max-width:720px"><tbody>
 			<tr><td>Installiert</td><td><strong><?php echo esc_html( GLP_VERSION ); ?></strong></td></tr>
-			<tr><td>Neueste auf GitHub</td><td><?php echo $release ? '<strong>' . esc_html( $release['version'] ) . '</strong>' : '– (noch kein Release gefunden)'; ?></td></tr>
+			<tr><td>Neueste auf GitHub</td><td><?php echo $release ? '<strong>' . esc_html( $release['version'] ) . '</strong>' : '– (nicht erreichbar' . ( get_option( 'glp_update_error' ) ? ': ' . esc_html( get_option( 'glp_update_error' ) ) : '' ) . ')'; ?></td></tr>
 			<tr><td>Repository</td><td><a href="<?php echo esc_url( 'https://github.com/' . GLP_GITHUB_REPO . '/releases' ); ?>" target="_blank" rel="noopener"><code><?php echo esc_html( GLP_GITHUB_REPO ); ?></code> – alle Versionen ↗</a></td></tr>
 		</tbody></table>
 		<p><a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=glp_check_updates' ), 'glp_check_updates' ) ); ?>">Jetzt nach Updates suchen</a></p>

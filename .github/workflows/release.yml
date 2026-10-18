@@ -31,7 +31,19 @@ jobs:
           rsync -a --exclude-from=.distignore ./ build/ghostlike-portal/
           cd build && zip -rq ghostlike-portal.zip ghostlike-portal
 
+      # Kleine Versionsdatei: WordPress liest sie über den normalen Download-Weg
+      # (kein API-Limit, wichtig auf Shared Hosting mit geteilter IP)
+      - name: release.json schreiben
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          NOTES=$(git log -1 --format=%B "$GITHUB_SHA" | grep -v '^Co-Authored-By' )
+          jq -n --arg v "$VER" --arg tag "$GITHUB_REF_NAME" --arg repo "$GITHUB_REPOSITORY" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $v, package: ("https://github.com/" + $repo + "/releases/download/" + $tag + "/ghostlike-portal.zip"), url: ("https://github.com/" + $repo + "/releases/tag/" + $tag), notes: $notes, date: $date}' > build/release.json
+          cat build/release.json
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: build/ghostlike-portal.zip
+          files: |
+            build/ghostlike-portal.zip
+            build/release.json
           generate_release_notes: true

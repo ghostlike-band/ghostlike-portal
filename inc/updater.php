@@ -15,31 +15,61 @@ function glp_latest_release( $force = false ) {
 			return $cached ?: null;
 		}
 	}
-	$res = wp_remote_get( 'https://api.github.com/repos/' . GLP_GITHUB_REPO . '/releases/latest', array(
-		'timeout' => 10,
-		'headers' => array( 'Accept' => 'application/vnd.github+json', 'User-Agent' => 'ghostlike-portal/' . GLP_VERSION ),
+
+	// 1. Versionsdatei über den normalen Download-Weg (kein API-Limit, wichtig bei geteilter IP)
+	$release = null;
+	$res     = wp_remote_get( 'https://github.com/' . GLP_GITHUB_REPO . '/releases/latest/download/release.json', array(
+		'timeout'     => 15,
+		'redirection' => 5,
+		'headers'     => array( 'Accept' => 'application/json', 'User-Agent' => 'ghostlike-portal/' . GLP_VERSION ),
 	) );
-	if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) !== 200 ) {
-		set_site_transient( GLP_RELEASE_CACHE, 0, HOUR_IN_SECONDS );
-		return null;
-	}
-	$data    = json_decode( wp_remote_retrieve_body( $res ), true );
-	$package = '';
-	foreach ( (array) ( $data['assets'] ?? array() ) as $a ) {
-		if ( ( $a['name'] ?? '' ) === 'ghostlike-portal.zip' ) {
-			$package = $a['browser_download_url'];
+	if ( ! is_wp_error( $res ) && wp_remote_retrieve_response_code( $res ) === 200 ) {
+		$d = json_decode( wp_remote_retrieve_body( $res ), true );
+		if ( ! empty( $d['version'] ) && ! empty( $d['package'] ) ) {
+			$release = array(
+				'version' => ltrim( (string) $d['version'], 'vV' ),
+				'package' => (string) $d['package'],
+				'url'     => (string) ( $d['url'] ?? '' ),
+				'notes'   => (string) ( $d['notes'] ?? '' ),
+				'date'    => (string) ( $d['date'] ?? '' ),
+			);
 		}
 	}
-	if ( empty( $data['tag_name'] ) || ! $package ) {
-		set_site_transient( GLP_RELEASE_CACHE, 0, HOUR_IN_SECONDS );
-		return null;
+
+	// 2. Ersatzweg: GitHub-API (max. 60 Anfragen/Stunde pro IP)
+	if ( ! $release ) {
+		$res = wp_remote_get( 'https://api.github.com/repos/' . GLP_GITHUB_REPO . '/releases/latest', array(
+			'timeout' => 10,
+			'headers' => array( 'Accept' => 'application/vnd.github+json', 'User-Agent' => 'ghostlike-portal/' . GLP_VERSION ),
+		) );
+		$code = is_wp_error( $res ) ? 0 : wp_remote_retrieve_response_code( $res );
+		if ( $code === 200 ) {
+			$data    = json_decode( wp_remote_retrieve_body( $res ), true );
+			$package = '';
+			foreach ( (array) ( $data['assets'] ?? array() ) as $a ) {
+				if ( ( $a['name'] ?? '' ) === 'ghostlike-portal.zip' ) {
+					$package = $a['browser_download_url'];
+				}
+			}
+			if ( ! empty( $data['tag_name'] ) && $package ) {
+				$release = array(
+					'version' => ltrim( $data['tag_name'], 'vV' ),
+					'package' => $package,
+					'url'     => $data['html_url'] ?? '',
+					'notes'   => $data['body'] ?? '',
+					'date'    => $data['published_at'] ?? '',
+				);
+			}
+		}
+		if ( ! $release ) {
+			$why = is_wp_error( $res ) ? $res->get_error_message() : ( $code === 403 ? 'GitHub-Abfragelimit erreicht, später erneut versuchen' : 'GitHub antwortet mit ' . $code );
+			update_option( 'glp_update_error', $why . ' (' . wp_date( 'd.m. H:i' ) . ')', false );
+			set_site_transient( GLP_RELEASE_CACHE, 0, 15 * MINUTE_IN_SECONDS );
+			return null;
+		}
 	}
-	$release = array(
-		'version' => ltrim( $data['tag_name'], 'vV' ),
-		'package' => $package,
-		'url'     => $data['html_url'] ?? '',
-		'notes'   => $data['body'] ?? '',
-	);
+
+	delete_option( 'glp_update_error' );
 	set_site_transient( GLP_RELEASE_CACHE, $release, 6 * HOUR_IN_SECONDS );
 	return $release;
 }
