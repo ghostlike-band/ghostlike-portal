@@ -9,7 +9,7 @@ WordPress-Plugin für das interne Band-Portal unter `/portal`.
 
 ## Einrichten
 1. Plugin hochladen und aktivieren
-2. Für jedes Mitglied einen Benutzer mit Rolle **Bandmitglied** anlegen (Vorname ausfüllen!)
+2. **GHOSTLIKE → Bandmitglieder**: Mitglieder per E-Mail einladen (Link 14 Tage gültig, Passwort legen sie selbst fest)
 3. **Einstellungen → GHOSTLIKE Portal**: Probe-Tag/Zeit/Ort, Arbeitsschritte, Gewichte, Zuständige
 
 ## Updates veröffentlichen

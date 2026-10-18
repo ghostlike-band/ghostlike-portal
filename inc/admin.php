@@ -91,7 +91,8 @@ function glp_admin_page() {
 		<p><a class="button button-primary" href="<?php echo esc_url( glp_portal_url() ); ?>" target="_blank">Portal öffnen ↗</a></p>
 
 		<h2>Bandmitglieder</h2>
-		<p style="max-width:760px">Jedes Mitglied braucht einen eigenen WordPress-Benutzer mit der Rolle <strong>Bandmitglied</strong> (<a href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>">Benutzer → Neu hinzufügen</a>). Der <strong>Vorname</strong> wird im Portal angezeigt und mit den Zuständigkeiten unten abgeglichen. Bandmitglieder sehen kein Backend, sie landen nach dem Login direkt im Portal.</p>
+		<p style="max-width:760px"><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=ghostlike-members' ) ); ?>">Bandmitglieder verwalten &amp; einladen</a></p>
+		<p style="max-width:760px">Jedes Mitglied braucht einen eigenen WordPress-Benutzer mit der Rolle <strong>Bandmitglied</strong>, am einfachsten über die Einladung oben. Der <strong>Vorname</strong> wird im Portal angezeigt und mit den Zuständigkeiten unten abgeglichen. Bandmitglieder sehen kein Backend, sie landen nach dem Login direkt im Portal.</p>
 		<p><?php echo $members ? 'Im Portal: <strong>' . esc_html( implode( ', ', array_column( $members, 'name' ) ) ) . '</strong>' : 'Noch niemand.'; ?></p>
 
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

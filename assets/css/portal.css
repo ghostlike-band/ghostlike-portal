@@ -252,3 +252,6 @@ fieldset.feld { border: 0; padding: 0; margin: 0; }
   .event-form { grid-template-columns: 1fr; }
   .feld--breit { grid-column: auto; }
 }
+
+.login__box .fehler { color: #E3B3A8; border-left: 3px solid #A86A5E; padding-left: 10px; margin: 0; }
+.login__box p { margin: 0; }

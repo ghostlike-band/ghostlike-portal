@@ -34,7 +34,21 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="login__mark logo" aria-label="Zur Website"><?php echo $mark; // phpcs:ignore ?></a>
 			<span class="meta">Member-Portal · Intern</span>
 			<h1 class="display-l">Back&shy;stage</h1>
-			<?php if ( $view === 'denied' ) : ?>
+			<?php if ( $view === 'invite' ) : ?>
+				<p>Willkommen, <strong><?php echo esc_html( trim( $invite_user->first_name ) ?: $invite_user->display_name ); ?></strong>! Leg dein Passwort fest, danach bist du direkt im Portal. Dein Benutzername ist <strong><?php echo esc_html( $invite_user->user_login ); ?></strong> (oder deine E-Mail).</p>
+				<?php if ( $invite_error ) : ?><p class="fehler"><?php echo esc_html( $invite_error ); ?></p><?php endif; ?>
+				<form method="post" id="loginform">
+					<?php wp_nonce_field( 'glp_set_password' ); ?>
+					<input type="text" name="log" value="<?php echo esc_attr( $invite_user->user_login ); ?>" autocomplete="username" hidden>
+					<p><label for="pass1">Neues Passwort (mind. 10 Zeichen)</label><input type="password" id="pass1" name="pass1" minlength="10" required autocomplete="new-password"></p>
+					<p><label for="pass2">Passwort wiederholen</label><input type="password" id="pass2" name="pass2" minlength="10" required autocomplete="new-password"></p>
+					<p><button class="button-primary" type="submit">Passwort speichern &amp; loslegen ↗</button></p>
+				</form>
+			<?php elseif ( $view === 'invite-invalid' ) : ?>
+				<p>Dieser Einladungslink ist abgelaufen oder wurde schon benutzt.</p>
+				<p class="meta">Schon ein Passwort gesetzt? Dann einfach einloggen. Sonst bitte um eine neue Einladung.</p>
+				<a class="btn btn--patina" href="<?php echo esc_url( glp_portal_url() ); ?>">Zum Login ↗</a>
+			<?php elseif ( $view === 'denied' ) : ?>
 				<p>Du bist eingeloggt, hast aber noch keinen Zugang zum Portal. Bitte einen Admin, dir die Rolle <strong>Bandmitglied</strong> zu geben.</p>
 				<a class="btn" href="<?php echo esc_url( wp_logout_url( glp_portal_url() ) ); ?>">Abmelden</a>
 			<?php else : ?>

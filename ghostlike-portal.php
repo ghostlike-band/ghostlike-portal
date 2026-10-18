@@ -3,7 +3,7 @@
  * Plugin Name: GHOSTLIKE Member-Portal
  * Plugin URI:  https://github.com/ghostlike-band/ghostlike-portal
  * Description: Internes Portal für die Band unter /portal: Übersicht, Kalender mit Proben und Zusagen, Studio-Tool mit Aufnahmestand. Updates per Klick über GitHub Releases.
- * Version:     0.1.0
+ * Version:     0.2.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Author:      GHOSTLIKE
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'GLP_VERSION', '0.1.0' );
+define( 'GLP_VERSION', '0.2.0' );
 define( 'GLP_FILE', __FILE__ );
 define( 'GLP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GLP_URL', plugin_dir_url( __FILE__ ) );
@@ -29,6 +29,7 @@ require GLP_DIR . 'inc/data.php';
 require GLP_DIR . 'inc/rest.php';
 require GLP_DIR . 'inc/frontend.php';
 require GLP_DIR . 'inc/admin.php';
+require GLP_DIR . 'inc/members.php';
 require GLP_DIR . 'inc/updater.php';
 
 register_activation_hook( __FILE__, 'glp_activate' );

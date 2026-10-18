@@ -25,6 +25,35 @@ add_action( 'template_redirect', function () {
 	}
 	nocache_headers();
 	header( 'X-Robots-Tag: noindex, nofollow', true );
+
+	// Einladungslink: Passwort festlegen und direkt einloggen
+	$invite_error = '';
+	if ( isset( $_GET['einladung'] ) ) {
+		$invite_user = glp_check_invite( wp_unslash( $_GET['einladung'] ) );
+		if ( $invite_user && $_SERVER['REQUEST_METHOD'] === 'POST' ) {
+			check_admin_referer( 'glp_set_password' );
+			$p1 = (string) wp_unslash( $_POST['pass1'] ?? '' );
+			$p2 = (string) wp_unslash( $_POST['pass2'] ?? '' );
+			if ( strlen( $p1 ) < 10 ) {
+				$invite_error = 'Bitte mindestens 10 Zeichen verwenden.';
+			} elseif ( $p1 !== $p2 ) {
+				$invite_error = 'Die beiden Passwörter stimmen nicht überein.';
+			} else {
+				wp_set_password( $p1, $invite_user->ID );
+				delete_user_meta( $invite_user->ID, 'glp_invite_hash' );
+				delete_user_meta( $invite_user->ID, 'glp_invite_expires' );
+				wp_set_current_user( $invite_user->ID );
+				wp_set_auth_cookie( $invite_user->ID, true, is_ssl() );
+				do_action( 'wp_login', $invite_user->user_login, $invite_user );
+				wp_safe_redirect( glp_portal_url() );
+				exit;
+			}
+		}
+		$view = $invite_user ? 'invite' : 'invite-invalid';
+		include GLP_DIR . 'templates/portal.php';
+		exit;
+	}
+
 	$view = ! is_user_logged_in() ? 'login' : ( current_user_can( 'gl_portal' ) ? 'app' : 'denied' );
 	include GLP_DIR . 'templates/portal.php';
 	exit;
