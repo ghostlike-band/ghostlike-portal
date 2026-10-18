@@ -255,3 +255,5 @@ fieldset.feld { border: 0; padding: 0; margin: 0; }
 
 .login__box .fehler { color: #E3B3A8; border-left: 3px solid #A86A5E; padding-left: 10px; margin: 0; }
 .login__box p { margin: 0; }
+.abo { display: flex; flex-wrap: wrap; gap: 8px; }
+.cal__add { color: var(--akzent); }

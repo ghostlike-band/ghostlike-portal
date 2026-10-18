@@ -126,13 +126,19 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<header class="view__head view__head--row">
 				<div><span class="meta">02 — Termine</span><h1 class="display-l">Kalen&shy;der</h1></div>
 				<div class="actions">
-					<button class="btn btn--klein" id="ical-toggle">Kalender-Abo <span class="pfeil">↗</span></button>
+					<button class="btn btn--klein" id="ical-toggle">Kalender abonnieren <span class="pfeil">↗</span></button>
 					<button class="btn btn--klein btn--patina" id="event-toggle">+ Termin</button>
 				</div>
 			</header>
 			<div class="panel" id="ical-panel" hidden>
-				<p class="klein">Mit diesem persönlichen Link erscheinen alle Proben und Termine automatisch in deinem Handy-Kalender (iPhone: <em>Einstellungen → Kalender → Accounts → Kalenderabo hinzufügen</em>, Google: <em>Andere Kalender → Per URL</em>). Nicht weitergeben.</p>
-				<div class="copy"><input id="ical-url" readonly><button class="btn btn--klein" id="ical-copy">Kopieren</button><button class="btn btn--klein" id="ical-reset" title="Neuen Link erzeugen, alter wird ungültig">Neu erzeugen</button></div>
+				<p class="klein">Einmal abonnieren, danach erscheinen alle Proben und Termine automatisch in deinem Kalender und bleiben aktuell, auch wenn eine Probe ausfällt. Der Link ist persönlich, bitte nicht weitergeben.</p>
+				<div class="abo">
+					<a class="btn btn--patina" id="abo-apple" href="#">Apple Kalender <span class="pfeil">↗</span></a>
+					<a class="btn" id="abo-google" href="#" target="_blank" rel="noopener">Google Kalender <span class="pfeil">↗</span></a>
+					<a class="btn" id="abo-outlook" href="#" target="_blank" rel="noopener">Outlook <span class="pfeil">↗</span></a>
+				</div>
+				<p class="meta">Apple: öffnet auf iPhone und Mac direkt den Abo-Dialog. Anderer Kalender? Link kopieren und dort „Kalender per URL abonnieren“ wählen.</p>
+				<div class="copy"><input id="ical-url" readonly aria-label="Persönlicher Kalender-Link"><button class="btn btn--klein" id="ical-copy">Kopieren</button><button class="btn btn--klein" id="ical-reset" title="Neuen Link erzeugen, alter wird ungültig">Neu erzeugen</button></div>
 			</div>
 			<form class="panel event-form" id="event-form" hidden>
 				<label class="feld"><span class="meta">Art</span><select name="type" id="ev-type"><option value="studio">Studio-Session</option><option value="konzert">Konzert</option><option value="termin">Sonstiger Termin</option></select></label>

@@ -134,7 +134,8 @@
       <p class="display-m">${esc(fmt(next.start, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</p>
       <span class="label">${esc(next.title)}</span>
       <span class="meta meta--hell">${esc(next.place || '')}${next.type !== 'probe' ? ' · ' + fmtTime(next.start) : ''}</span>
-      <div class="zusage">${zusageHTML(next)}</div>` : '<span class="meta">Keine Termine in Sicht.</span>';
+      <div class="zusage">${zusageHTML(next)}</div>
+      ${addLink(next)}` : '<span class="meta">Keine Termine in Sicht.</span>';
 
     const a = avg(album());
     $('#home-album').textContent = a; $('#home-album-bar').style.width = a + '%';
@@ -158,6 +159,15 @@
   });
 
   /* ================= KALENDER ================= */
+  const eventIcs = (e) => S.ical + '?event=' + encodeURIComponent(e.key);
+  const addLink = (e) => (e.cancelled ? '' : `<a class="link meta cal__add" href="${esc(eventIcs(e))}">＋ In meinen Kalender</a>`);
+  function fillAbo() {
+    const webcal = S.ical.replace(/^https?:/, 'webcal:');
+    $('#ical-url').value = S.ical;
+    $('#abo-apple').href = webcal;
+    $('#abo-google').href = 'https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcal);
+    $('#abo-outlook').href = 'https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(S.ical) + '&name=GHOSTLIKE';
+  }
   const typeLabel = (t) => ({ probe: 'Bandprobe', studio: 'Studio-Session', konzert: 'Konzert', termin: 'Termin' }[t] || 'Termin');
 
   function renderCal() {
@@ -169,7 +179,7 @@
           <span class="label">${esc(e.title)}</span>
           <span class="meta">${esc(typeLabel(e.type))}${e.type !== 'probe' ? ' · ' + fmtTime(e.start) : ''}${e.place ? ' · ' + esc(e.place) : ''}</span>
           ${e.who && e.who.length ? `<span class="wer">${e.who.map((w) => av(w)).join('')}</span>` : ''}
-          <span class="cal__tools">${e.type === 'probe'
+          <span class="cal__tools">${addLink(e)}${e.type === 'probe'
             ? `<button class="link meta" data-probe="${esc(e.start.slice(0, 10))}" data-off="${e.cancelled ? 0 : 1}">${e.cancelled ? '↺ Findet doch statt' : '✕ Probe fällt aus'}</button>`
             : `<button class="link meta" data-del-event="${e.id}">✕ Löschen</button>`}</span>
         </div>
@@ -222,7 +232,7 @@
   });
 
   // Kalender-Abo
-  $('#ical-toggle').addEventListener('click', () => { const p = $('#ical-panel'); p.hidden = !p.hidden; $('#ical-url').value = S.ical; });
+  $('#ical-toggle').addEventListener('click', () => { const p = $('#ical-panel'); p.hidden = !p.hidden; fillAbo(); });
   $('#ical-copy').addEventListener('click', async () => {
     const inp = $('#ical-url');
     try { await navigator.clipboard.writeText(inp.value); toast('Link kopiert'); }
@@ -230,7 +240,7 @@
   });
   $('#ical-reset').addEventListener('click', async () => {
     if (!confirm('Neuen Link erzeugen? Der alte funktioniert dann nicht mehr.')) return;
-    try { const r = await api('ical-reset', { method: 'POST' }); S.ical = r.ical; $('#ical-url').value = r.ical; toast('Neuer Link erzeugt'); }
+    try { const r = await api('ical-reset', { method: 'POST' }); S.ical = r.ical; fillAbo(); renderCal(); renderHome(); toast('Neuer Link erzeugt – bitte im Kalender neu abonnieren'); }
     catch (err) { toast(err.message); }
   });
 

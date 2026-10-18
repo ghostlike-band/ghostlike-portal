@@ -277,8 +277,23 @@ function glp_rest_ical( WP_REST_Request $req ) {
 	$esc = fn( $s ) => str_replace( array( '\\', ';', ',', "\n" ), array( '\\\\', '\;', '\,', '\n' ), (string) $s );
 	$from = ( new DateTimeImmutable( 'today', wp_timezone() ) )->modify( '-14 days' );
 	$host = wp_parse_url( home_url(), PHP_URL_HOST );
-	$out  = array( 'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//GHOSTLIKE//Portal//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:GHOSTLIKE', 'X-WR-TIMEZONE:' . wp_timezone_string() );
-	foreach ( glp_events( 26, $from ) as $e ) {
+	// ?event=probe-2026-10-20 → nur dieser eine Termin (Button „+ In meinen Kalender“), mit Erinnerung
+	$only   = preg_match( '/^(probe-\d{4}-\d{2}-\d{2}|ev-\d+)$/', (string) $req->get_param( 'event' ) ) ? (string) $req->get_param( 'event' ) : '';
+	$events = glp_events( 26, $from );
+	if ( $only ) {
+		$events = array_values( array_filter( $events, fn( $e ) => $e['key'] === $only ) );
+		if ( ! $events ) {
+			return glp_err( 'Termin nicht gefunden.', 404 );
+		}
+	}
+	$out  = array( 'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//GHOSTLIKE//Portal//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH' );
+	if ( ! $only ) {
+		$out[] = 'X-WR-CALNAME:GHOSTLIKE';
+		$out[] = 'X-WR-TIMEZONE:' . wp_timezone_string();
+		$out[] = 'REFRESH-INTERVAL;VALUE=DURATION:PT6H';
+		$out[] = 'X-PUBLISHED-TTL:PT6H';
+	}
+	foreach ( $events as $e ) {
 		$start = new DateTimeImmutable( $e['start'] );
 		$hours = $e['type'] === 'probe' ? 3 : ( $e['type'] === 'konzert' ? 5 : 4 );
 		$end   = $start->modify( '+' . $hours . ' hours' );
@@ -295,13 +310,17 @@ function glp_rest_ical( WP_REST_Request $req ) {
 		if ( $e['cancelled'] ) {
 			$out[] = 'STATUS:CANCELLED';
 		}
+		$out[] = 'URL:' . glp_portal_url();
+		if ( $only ) {
+			$out = array_merge( $out, array( 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' . $esc( 'GHOSTLIKE · ' . $e['title'] ), 'TRIGGER:-PT2H', 'END:VALARM' ) );
+		}
 		$out[] = 'END:VEVENT';
 	}
 	$out[] = 'END:VCALENDAR';
 
 	nocache_headers();
 	header( 'Content-Type: text/calendar; charset=utf-8' );
-	header( 'Content-Disposition: inline; filename="ghostlike.ics"' );
+	header( 'Content-Disposition: inline; filename="' . ( $only ? 'ghostlike-' . $only : 'ghostlike' ) . '.ics"' );
 	echo implode( "\r\n", $out ) . "\r\n"; // phpcs:ignore
 	exit;
 }
