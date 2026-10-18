@@ -47,6 +47,17 @@ function glp_send_invite( $user_id ) {
 	$band    = get_bloginfo( 'name' );
 	$first   = trim( $user->first_name ) ?: $user->display_name;
 	$expires = wp_date( 'd.m.Y', time() + GLP_INVITE_DAYS * DAY_IN_SECONDS );
+	// Texte und Design kommen aus dem Theme (GHOSTLIKE → E-Mails), wenn vorhanden
+	if ( function_exists( 'gl_send_email' ) ) {
+		return gl_send_email( $user->user_email, 'portal_invite', array(
+			'vorname'      => $first,
+			'von'          => $from,
+			'link'         => $url,
+			'benutzername' => $user->user_login,
+			'gueltig_bis'  => $expires,
+		) );
+	}
+
 	$subject = sprintf( '%s lädt dich ins %s Member-Portal ein', $from, $band );
 
 	$html = '<!doctype html><html><body style="margin:0;background:#0A0B0A;font-family:Arial,Helvetica,sans-serif;color:#C9CEC6">
