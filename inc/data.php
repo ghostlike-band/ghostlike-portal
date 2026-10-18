@@ -201,3 +201,8 @@ function glp_ical_token( $user_id, $reset = false ) {
 function glp_ical_url( $user_id ) {
 	return rest_url( 'ghostlike-portal/v1/ical/' . (int) $user_id . '/' . glp_ical_token( $user_id ) );
 }
+
+/** Persönlicher Ein-Tipp-Link zum Zu-/Absagen (z. B. aus dem Handy-Kalender). */
+function glp_rsvp_url( $user_id, $key, $status ) {
+	return add_query_arg( 'zusage', (int) $user_id . '.' . glp_ical_token( $user_id ) . '.' . $key . '.' . $status, glp_portal_url() );
+}

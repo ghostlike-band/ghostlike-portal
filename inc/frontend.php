@@ -26,6 +26,12 @@ add_action( 'template_redirect', function () {
 	nocache_headers();
 	header( 'X-Robots-Tag: noindex, nofollow', true );
 
+	// Zu-/Absage per Ein-Tipp-Link (aus dem Handy-Kalender): ?zusage=<user>.<token>.<termin>.<ja|nein>
+	if ( isset( $_GET['zusage'] ) ) {
+		glp_handle_rsvp( (string) wp_unslash( $_GET['zusage'] ) );
+		exit;
+	}
+
 	// Einladungslink: Passwort festlegen und direkt einloggen
 	$invite_error = '';
 	if ( isset( $_GET['einladung'] ) ) {
@@ -103,3 +109,54 @@ add_action( 'login_enqueue_scripts', function () {
 } );
 add_filter( 'login_headerurl', fn() => home_url( '/' ) );
 add_filter( 'login_headertext', fn() => get_bloginfo( 'name' ) );
+
+function glp_handle_rsvp( $param ) {
+	global $wpdb;
+	$ok = preg_match( '/^(\d+)\.([A-Za-z0-9]{32})\.(probe-\d{4}-\d{2}-\d{2}|ev-\d+)\.(ja|nein)$/', $param, $m );
+	$uid = $ok ? (int) $m[1] : 0;
+	$saved = $uid ? get_user_meta( $uid, 'glp_ical_token', true ) : '';
+	if ( ! $ok || ! $saved || ! hash_equals( $saved, $m[2] ) || ! user_can( $uid, 'gl_portal' ) ) {
+		glp_simple_page( 'Link ungültig', '<p>Dieser Link funktioniert nicht (mehr). Bitte im Portal zu- oder absagen.</p>' );
+		return;
+	}
+	$key    = $m[3];
+	$status = $m[4];
+	$from   = ( new DateTimeImmutable( 'today', wp_timezone() ) )->modify( '-1 day' );
+	$event  = null;
+	foreach ( glp_events( 26, $from ) as $e ) {
+		if ( $e['key'] === $key ) {
+			$event = $e;
+		}
+	}
+	if ( ! $event ) {
+		glp_simple_page( 'Termin vorbei', '<p>Diesen Termin gibt es nicht mehr oder er ist schon vorbei.</p>' );
+		return;
+	}
+	$when = wp_date( 'D, d.m.', strtotime( $event['start'] ) );
+	if ( $event['cancelled'] ) {
+		glp_simple_page( 'Fällt aus', '<p><strong>' . esc_html( $event['title'] ) . '</strong> am ' . esc_html( $when ) . ' fällt aus. Da musst du nichts tun.</p>' );
+		return;
+	}
+	$wpdb->replace( glp_table( 'attendance' ), array( 'event_key' => $key, 'user_id' => $uid, 'status' => $status, 'updated_at' => current_time( 'mysql' ) ) );
+
+	$other = glp_rsvp_url( $uid, $key, $status === 'ja' ? 'nein' : 'ja' );
+	$head  = $status === 'ja' ? '✓ Du bist dabei' : '✕ Abgesagt';
+	$body  = '<p><strong>' . esc_html( $event['title'] ) . '</strong><br>' . esc_html( $when . ( $event['place'] ? ' · ' . $event['place'] : '' ) ) . '</p>'
+		. '<p>Gespeichert, die anderen sehen es im Portal sofort. In deinem Kalender steht es nach dem nächsten Abgleich.</p>'
+		. '<p class="aktionen"><a class="btn" href="' . esc_url( $other ) . '">' . ( $status === 'ja' ? 'Doch nicht' : 'Doch dabei' ) . '</a> <a class="btn btn--patina" href="' . esc_url( glp_portal_url() . '#kalender' ) . '">Zum Portal ↗</a></p>';
+	glp_simple_page( $head, $body );
+}
+
+/** Kleine Seite im Portal-Look (Bestätigungen). */
+function glp_simple_page( $title, $html ) {
+	$v = fn( $f ) => GLP_VERSION . '.' . (int) @filemtime( GLP_DIR . $f );
+	?><!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><meta name="theme-color" content="#0A0B0A">
+<title><?php echo esc_html( $title ); ?> · <?php echo esc_html( get_bloginfo( 'name' ) ); ?></title>
+<?php foreach ( array( 'assets/css/fonts.css', 'assets/css/base.css', 'assets/css/portal.css' ) as $f ) : ?><link rel="stylesheet" href="<?php echo esc_url( GLP_URL . $f . '?ver=' . $v( $f ) ); ?>"><?php endforeach; ?>
+</head><body class="glp glp--simple"><main class="simple">
+<span class="meta">Member-Portal · <?php echo esc_html( get_bloginfo( 'name' ) ); ?></span>
+<h1 class="display-l"><?php echo esc_html( $title ); ?></h1>
+<?php echo $html; // phpcs:ignore -- oben escaped ?>
+</main></body></html><?php
+}

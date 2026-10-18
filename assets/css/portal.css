@@ -257,3 +257,7 @@ fieldset.feld { border: 0; padding: 0; margin: 0; }
 .login__box p { margin: 0; }
 .abo { display: flex; flex-wrap: wrap; gap: 8px; }
 .cal__add { color: var(--akzent); }
+.simple { max-width: 560px; margin: 0 auto; min-height: 100svh; padding: 48px max(20px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; justify-content: center; gap: 18px; border-left: 4px solid var(--akzent); }
+.simple .display-l { font-size: clamp(32px, 9vw, 52px); }
+.simple p { margin: 0; font-size: 17px; line-height: 1.6; }
+.simple .aktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

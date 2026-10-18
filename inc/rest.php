@@ -293,6 +293,48 @@ function glp_rest_ical( WP_REST_Request $req ) {
 		$out[] = 'REFRESH-INTERVAL;VALUE=DURATION:PT6H';
 		$out[] = 'X-PUBLISHED-TTL:PT6H';
 	}
+	// Zu- und Absagen für die Beschreibung
+	$att     = (array) glp_attendance( array_column( $events, 'key' ) );
+	$members = glp_members();
+	$describe = function ( $e ) use ( $att, $members, $uid ) {
+		$a     = (array) ( $att[ $e['key'] ] ?? array() );
+		$ja    = array();
+		$nein  = array();
+		$offen = array();
+		foreach ( $members as $m ) {
+			$st = $a[ $m['id'] ] ?? '';
+			if ( $st === 'ja' ) {
+				$ja[] = $m['name'];
+			} elseif ( $st === 'nein' ) {
+				$nein[] = $m['name'];
+			} else {
+				$offen[] = $m['name'];
+			}
+		}
+		$lines = array();
+		if ( $e['cancelled'] ) {
+			$lines[] = 'Fällt aus.';
+		}
+		if ( ! empty( $e['who'] ) ) {
+			$lines[] = 'Eingeplant: ' . implode( ', ', $e['who'] );
+		}
+		$lines[] = 'Dabei: ' . ( $ja ? implode( ', ', $ja ) : '–' );
+		$lines[] = 'Nicht dabei: ' . ( $nein ? implode( ', ', $nein ) : '–' );
+		$lines[] = 'Noch offen: ' . ( $offen ? implode( ', ', $offen ) : '–' );
+		if ( ! empty( $e['note'] ) ) {
+			$lines[] = '';
+			$lines[] = $e['note'];
+		}
+		$lines[] = '';
+		if ( ! $e['cancelled'] ) {
+			$lines[] = '✓ Ich bin dabei: ' . glp_rsvp_url( $uid, $e['key'], 'ja' );
+			$lines[] = '✕ Ich kann nicht: ' . glp_rsvp_url( $uid, $e['key'], 'nein' );
+			$lines[] = '';
+		}
+		$lines[] = 'Portal: ' . glp_portal_url() . '#kalender';
+		return implode( "\n", $lines );
+	};
+
 	foreach ( $events as $e ) {
 		$start = new DateTimeImmutable( $e['start'] );
 		$hours = $e['type'] === 'probe' ? 3 : ( $e['type'] === 'konzert' ? 5 : 4 );
@@ -310,6 +352,8 @@ function glp_rest_ical( WP_REST_Request $req ) {
 		if ( $e['cancelled'] ) {
 			$out[] = 'STATUS:CANCELLED';
 		}
+		$out[] = 'DESCRIPTION:' . $esc( $describe( $e ) );
+		$out[] = 'LAST-MODIFIED:' . gmdate( 'Ymd\THis\Z' );
 		$out[] = 'URL:' . glp_portal_url();
 		if ( $only ) {
 			$out = array_merge( $out, array( 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' . $esc( 'GHOSTLIKE · ' . $e['title'] ), 'TRIGGER:-PT2H', 'END:VALARM' ) );
@@ -321,6 +365,18 @@ function glp_rest_ical( WP_REST_Request $req ) {
 	nocache_headers();
 	header( 'Content-Type: text/calendar; charset=utf-8' );
 	header( 'Content-Disposition: inline; filename="' . ( $only ? 'ghostlike-' . $only : 'ghostlike' ) . '.ics"' );
-	echo implode( "\r\n", $out ) . "\r\n"; // phpcs:ignore
+	$fold = function ( $line ) {
+		$res = '';
+		$cur = '';
+		foreach ( preg_split( '//u', $line, -1, PREG_SPLIT_NO_EMPTY ) as $ch ) {
+			if ( strlen( $cur . $ch ) > ( $res === '' ? 75 : 74 ) ) {
+				$res .= ( $res === '' ? '' : "\r\n " ) . $cur;
+				$cur  = '';
+			}
+			$cur .= $ch;
+		}
+		return $res === '' ? $cur : $res . "\r\n " . $cur;
+	};
+	echo implode( "\r\n", array_map( $fold, $out ) ) . "\r\n"; // phpcs:ignore
 	exit;
 }
