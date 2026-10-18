@@ -1,0 +1,37 @@
+# Baut bei jedem Tag „v1.2.3“ die Datei ghostlike-portal.zip und hängt sie an ein GitHub-Release.
+# WordPress (inc/updater.php) findet das Release und bietet das Update per Klick an.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version prüfen (Tag = Plugin-Kopf = GLP_VERSION)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          HEAD=$(grep -m1 -E '^\s*\*\s*Version:' ghostlike-portal.php | awk '{print $NF}')
+          CONST=$(grep -m1 "GLP_VERSION'," ghostlike-portal.php | sed -E "s/.*'([0-9.]+)'.*/\1/")
+          if [ "$TAG" != "$HEAD" ] || [ "$TAG" != "$CONST" ]; then
+            echo "::error::Tag $TAG, Plugin-Kopf $HEAD und GLP_VERSION $CONST müssen gleich sein"
+            exit 1
+          fi
+
+      - name: ZIP bauen
+        run: |
+          mkdir -p build/ghostlike-portal
+          rsync -a --exclude-from=.distignore ./ build/ghostlike-portal/
+          cd build && zip -rq ghostlike-portal.zip ghostlike-portal
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: build/ghostlike-portal.zip
+          generate_release_notes: true
