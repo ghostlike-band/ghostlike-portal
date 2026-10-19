@@ -514,12 +514,17 @@
   function renderVersions() {
     const s = songById(curId); if (!s) return;
     const list = versionsOf(s.id);
+    // Hinweis, wenn die aktuelle Datei ein anderes Tempo hat als eingetragen
+    const fileBpm = list[0] && list[0].bpm, songBpm = String(s.meta.bpm || '').trim();
+    const hint = $('#d-bpmhint');
+    hint.hidden = !(fileBpm && songBpm && parseFloat(fileBpm) !== parseFloat(songBpm.replace(',', '.')));
+    if (!hint.hidden) hint.innerHTML = `<span class="meta">In v${list[0].v} steht <b>${esc(fileBpm)} BPM</b> (eingetragen: ${esc(songBpm)})</span> <button class="btn btn--klein" data-bpm-apply="${esc(fileBpm)}">Übernehmen</button>`;
     $('#d-max').textContent = `max. ${fmtSize(S.maxUpload)} pro Datei`;
     $('#d-vlist').innerHTML = list.length ? list.map((v, i) => `
       <li class="${i === 0 ? 'is-aktuell' : ''}">
         <button class="play ${playing && playing.id === v.id && !pl.audio.paused ? 'is-on' : ''}" data-play="${v.id}" data-song-id="${s.id}" aria-label="v${v.v} abspielen">${playing && playing.id === v.id && !pl.audio.paused ? '❚❚' : '▶'}</button>
         <span class="versions__info"><span class="label">v${v.v}${i === 0 ? ' <span class="tag tag--patina">aktuell</span>' : ''}${v.note ? ' · ' + esc(v.note) : ''}</span>
-        <span class="meta">${esc(fmt(v.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))} · ${esc(v.by)} · ${fmtSize(v.size)}</span></span>
+        <span class="meta">${esc(fmt(v.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))} · ${esc(v.by)}${v.len ? ' · ' + fmtDur(v.len) : ''}${v.bpm ? ' · ' + esc(v.bpm) + ' BPM' : ''} · ${fmtSize(v.size)}</span></span>
         <span class="versions__tools"><a class="link meta" href="${esc(audioSrc(v.id, true))}" title="Herunterladen">↓</a>${v.by === S.me.name || S.me.admin ? `<button class="link meta" data-del-version="${v.id}" title="Version löschen">✕</button>` : ''}</span>
       </li>`).join('') : '<li class="leer">Noch keine Version. Lad die erste hoch.</li>';
   }
@@ -540,9 +545,11 @@
       let json = {}; try { json = JSON.parse(xhr.responseText); } catch (err) {}
       if (xhr.status >= 200 && xhr.status < 300) {
         S.audio[s.id] = json.versions || [];
+        if (json.song) { replaceSong(json.song); if (json.bpm_applied) $('#d-m-bpm').value = json.song.meta.bpm || ''; }
         $('#d-vnote').value = ''; $('#d-file').value = '';
         localLog(`${s.title} v${S.audio[s.id][0] ? S.audio[s.id][0].v : 1} hochgeladen`);
-        renderAll(); renderVersions(); toast('Hochgeladen ✓');
+        renderAll(); renderVersions();
+        toast(json.bpm_applied ? `Hochgeladen ✓ · ${json.bpm} BPM aus der Datei eingetragen` : json.bpm ? `Hochgeladen ✓ · Datei: ${json.bpm} BPM` : 'Hochgeladen ✓');
       } else toast(json.message || 'Upload fehlgeschlagen');
     };
     xhr.onerror = () => { busy--; bar.hidden = true; toast('Keine Verbindung, bitte erneut versuchen'); };
@@ -553,6 +560,13 @@
   ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
   ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('is-over'); }));
   drop.addEventListener('drop', (e) => uploadVersion(e.dataTransfer.files[0]));
+  $('#d-bpmhint').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-bpm-apply]'); if (!b) return;
+    $('#d-m-bpm').value = b.dataset.bpmApply;
+    queueSave(true);
+    $('#d-bpmhint').hidden = true;
+    toast(`BPM auf ${b.dataset.bpmApply} gesetzt`);
+  });
   $('#d-vlist').addEventListener('click', async (e) => {
     const d = e.target.closest('[data-del-version]'); if (!d) return;
     if (!confirm('Diese Version endgültig löschen?')) return;

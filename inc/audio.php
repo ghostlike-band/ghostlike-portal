@@ -32,7 +32,7 @@ function glp_audio_dir() {
 /** Alle Versionen pro Song: [song_id => [ {id, v, name, note, by, date, size}, … neueste zuerst ]]. */
 function glp_audio_by_song() {
 	global $wpdb;
-	$rows = $wpdb->get_results( 'SELECT id, song_id, name, note, size, uploaded_by, created_at FROM ' . glp_table( 'audio' ) . ' ORDER BY song_id ASC, created_at ASC, id ASC' );
+	$rows = $wpdb->get_results( 'SELECT id, song_id, name, note, size, bpm, length, uploaded_by, created_at FROM ' . glp_table( 'audio' ) . ' ORDER BY song_id ASC, created_at ASC, id ASC' );
 	$out  = array();
 	foreach ( (array) $rows as $r ) {
 		$sid           = (int) $r->song_id;
@@ -42,6 +42,8 @@ function glp_audio_by_song() {
 			'name' => $r->name,
 			'note' => $r->note,
 			'size' => (int) $r->size,
+			'bpm'  => (float) $r->bpm ? glp_fmt_bpm( (float) $r->bpm ) : '',
+			'len'  => (int) $r->length,
 			'by'   => glp_user_name( $r->uploaded_by ),
 			'date' => mysql2date( 'c', $r->created_at ),
 		);
@@ -50,6 +52,35 @@ function glp_audio_by_song() {
 		$list = array_reverse( $list );
 	}
 	return $out;
+}
+
+/** 165.00 → "165", 87.50 → "87.5" */
+function glp_fmt_bpm( $bpm ) {
+	return rtrim( rtrim( number_format( (float) $bpm, 2, '.', '' ), '0' ), '.' );
+}
+
+/**
+ * Tempo und Länge aus den Datei-Infos lesen (ID3 „TBPM“ bei MP3, „tmpo“ bei M4A).
+ * Nutzt getID3, das in WordPress enthalten ist. Liefert [bpm (0 = keins), länge in s].
+ */
+function glp_audio_read_meta( $path ) {
+	if ( ! function_exists( 'wp_read_audio_metadata' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+	}
+	$meta = @wp_read_audio_metadata( $path );
+	$bpm  = 0.0;
+	if ( is_array( $meta ) ) {
+		foreach ( array( 'bpm', 'tbpm', 'tempo', 'beats_per_minute' ) as $k ) {
+			if ( ! empty( $meta[ $k ] ) && is_scalar( $meta[ $k ] ) ) {
+				$bpm = (float) str_replace( ',', '.', preg_replace( '/[^0-9.,]/', '', (string) $meta[ $k ] ) );
+				break;
+			}
+		}
+	}
+	if ( $bpm < 30 || $bpm > 400 ) {
+		$bpm = 0.0; // unplausibel → ignorieren
+	}
+	return array( round( $bpm, 2 ), is_array( $meta ) ? (int) round( (float) ( $meta['length'] ?? 0 ) ) : 0 );
 }
 
 function glp_audio_url( $id, $download = false ) {
@@ -88,6 +119,7 @@ function glp_rest_audio_upload( WP_REST_Request $req ) {
 	if ( ! @move_uploaded_file( $f['tmp_name'], glp_audio_dir() . '/' . $file ) ) {
 		return glp_err( 'Die Datei konnte nicht gespeichert werden.', 500 );
 	}
+	[ $bpm, $length ] = glp_audio_read_meta( glp_audio_dir() . '/' . $file );
 	$wpdb->insert( glp_table( 'audio' ), array(
 		'song_id'     => $song['id'],
 		'file'        => $file,
@@ -95,13 +127,30 @@ function glp_rest_audio_upload( WP_REST_Request $req ) {
 		'mime'        => GLP_AUDIO_TYPES[ $ext ],
 		'size'        => (int) $f['size'],
 		'note'        => mb_substr( sanitize_text_field( (string) $req->get_param( 'note' ) ), 0, 190 ),
+		'bpm'         => $bpm,
+		'length'      => $length,
 		'uploaded_by' => get_current_user_id(),
 		'created_at'  => current_time( 'mysql' ),
 	) );
 	$all = glp_audio_by_song()[ $song['id'] ] ?? array();
 	$v   = $all ? $all[0]['v'] : 1;
 	glp_log( $song['title'] . ' v' . $v . ' hochgeladen' . ( $req->get_param( 'note' ) ? ' (' . mb_substr( sanitize_text_field( (string) $req->get_param( 'note' ) ), 0, 60 ) . ')' : '' ) );
-	return glp_ok( array( 'versions' => $all ) );
+
+	// BPM aus der Datei: nur eintragen, wenn das Feld noch leer ist – nie überschreiben
+	$applied = false;
+	if ( $bpm && trim( (string) ( ( (array) $song['meta'] )['bpm'] ?? '' ) ) === '' ) {
+		$meta        = (array) $song['meta'];
+		$meta['bpm'] = glp_fmt_bpm( $bpm );
+		$wpdb->update( glp_table( 'songs' ), array( 'meta' => wp_json_encode( (object) $meta ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $song['id'] ) );
+		glp_log( 'BPM aus Datei übernommen: ' . $song['title'] . ' → ' . glp_fmt_bpm( $bpm ) );
+		$applied = true;
+	}
+	return glp_ok( array(
+		'versions'    => $all,
+		'bpm'         => $bpm ? glp_fmt_bpm( $bpm ) : '',
+		'bpm_applied' => $applied,
+		'song'        => glp_song( $song['id'] ),
+	) );
 }
 
 function glp_rest_audio_delete( WP_REST_Request $req ) {

@@ -304,6 +304,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 		</div>
 		<section class="versions" id="d-versions">
 			<div class="versions__head"><span class="meta">Versionen</span><span class="meta" id="d-max"></span></div>
+			<div class="bpm-hint" id="d-bpmhint" hidden></div>
 			<ol class="versions__list" id="d-vlist"></ol>
 			<form class="versions__up" id="d-upload">
 				<label class="versions__drop" id="d-drop">

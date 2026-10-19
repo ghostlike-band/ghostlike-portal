@@ -73,6 +73,8 @@ function glp_install() {
 		mime varchar(60) NOT NULL DEFAULT 'audio/mpeg',
 		size bigint(20) unsigned NOT NULL DEFAULT 0,
 		note varchar(190) NOT NULL DEFAULT '',
+		bpm decimal(6,2) NOT NULL DEFAULT 0,
+		length int(11) NOT NULL DEFAULT 0,
 		uploaded_by bigint(20) unsigned NOT NULL DEFAULT 0,
 		created_at datetime NOT NULL,
 		PRIMARY KEY  (id),
