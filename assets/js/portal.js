@@ -143,7 +143,7 @@
     $('#home-album-sub').textContent = `${album().filter((s) => pct(s) === 100).length} von ${album().length} Songs fertig · ${openSteps(album())} Schritte offen`;
 
     const todos = myTodos();
-    $('#todo-count').textContent = todos.length ? `${todos.length} offen` : '';
+    $('#todo-count').innerHTML = todos.length ? `${todos.length} offen · <button class="link meta" data-show-todos>alle ↗</button>` : '';
     $('#home-todo').innerHTML = todos.length ? todos.slice(0, 7).map((t) => `
       <li><span><span class="label">${esc(t.st.l)} · ${esc(t.s.title)}</span><br><span class="meta">${label(t.st, t.v)} · Song bei ${t.p}%</span></span>
       <button data-todo="${t.s.id}|${esc(t.st.k)}">→ ${label(t.st, nextOf(t.st, t.v))}</button></li>`).join('')
@@ -154,6 +154,7 @@
       || '<li class="leer">Noch nichts passiert.</li>';
   }
   document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-show-todos]')) { todoWho = ''; setStudioView('todos'); renderTodos(); show('studio'); return; }
     const b = e.target.closest('[data-todo]'); if (!b) return;
     const [sid, k] = b.dataset.todo.split('|');
     setStep(songById(sid), stepByKey(k));
@@ -333,6 +334,103 @@
     catch (err) { toast(err.message); }
   });
 
+  /* ================= MEINE TO-DOS ================= */
+  let studioView = 'matrix', todoWho = '', todoFilter = 'alle';
+  try { studioView = sessionStorage.getItem('glp-studio') || 'matrix'; } catch (e) {}
+
+  function setStudioView(v) {
+    studioView = v;
+    $$('[data-studio]').forEach((b) => { const on = b.dataset.studio === v; b.classList.toggle('is-on', on); b.setAttribute('aria-selected', on); });
+    $('#studio-matrix').hidden = v !== 'matrix';
+    $('#studio-todos').hidden = v !== 'todos';
+    try { sessionStorage.setItem('glp-studio', v); } catch (e) {}
+  }
+  $$('[data-studio]').forEach((b) => b.addEventListener('click', () => setStudioView(b.dataset.studio)));
+
+  // Welche Aktionen für einen offenen Schritt sinnvoll sind
+  function todoActions(st, v) {
+    if (st.t === 'done') return [[2, '✓ Fertig']];
+    if (st.t === 'rec') return v === 0 ? [[1, '✓ Aufgenommen'], [2, '✓ Editiert']] : [[2, '✓ Editiert']];
+    return v === 0 ? [[1, 'In Arbeit'], [2, '✓ Fertig']] : [[2, '✓ Fertig']];
+  }
+  const todoState = (st, v) => (v === 1 ? (st.t === 'rec' ? 'aufgenommen · Edit fehlt' : 'in Arbeit') : (st.t === 'rec' ? 'noch aufnehmen' : 'offen'));
+
+  function renderTodos() {
+    const who = todoWho || S.me.name;
+    // Zähler am Reiter: meine offenen Schritte
+    const mine = album().reduce((n, s) => n + S.steps.filter((st) => isMine(st, S.me.name) && [0, 1].includes(stateOf(s, st))).length, 0);
+    $('#todo-n').textContent = mine ? mine : '';
+
+    $('#todo-who').innerHTML = '<span class="meta">Für:</span>' + S.members.map((m) =>
+      `<button class="chip ${m.name === who ? 'is-on' : ''}" data-todo-who="${esc(m.name)}">${m.id === S.me.id ? 'Mich' : esc(m.name)}</button>`).join('');
+
+    const assigned = S.steps.filter((st) => isMine(st, who));
+    if (!assigned.length) {
+      $('#todo-sum').innerHTML = '';
+      $('#todo-songs').innerHTML = `<p class="leer">Für ${esc(who)} sind noch keine Arbeitsschritte eingetragen.${S.me.admin ? ' Zuständigkeiten stellst du unter Einstellungen → GHOSTLIKE Portal ein.' : ' Zuständigkeiten stellt ein Admin ein.'}</p>`;
+      return;
+    }
+
+    // Persönlicher Fortschritt (gewichtet wie im Studio)
+    let w = 0, got = 0, open0 = 0, open1 = 0;
+    const songs = [];
+    album().forEach((s) => {
+      const items = [];
+      assigned.forEach((st) => {
+        const v = stateOf(s, st);
+        if (v === -1) return;
+        w += +st.w; got += +st.w * val(v);
+        if (v === 0) open0++;
+        if (v === 1) open1++;
+        if ((v === 0 || v === 1) && (todoFilter === 'alle' || (todoFilter === 'rec' && v === 0) || (todoFilter === 'edit' && v === 1))) items.push({ st, v });
+      });
+      if (items.length) songs.push({ s, items, p: pct(s) });
+    });
+    songs.sort((a, b) => b.p - a.p || a.s.nr - b.s.nr); // fast fertige Songs zuerst
+    const mp = w ? Math.round((got / w) * 100) : 100;
+
+    $('#todo-sum').innerHTML = `
+      <div class="todo-sum__big"><span class="meta">${who === S.me.name ? 'Dein' : esc(who) + 's'} Anteil am Album</span><b>${mp}%</b><div class="bar"><i style="width:${mp}%"></i></div></div>
+      <div class="kpi"><span class="meta">Noch aufnehmen</span><b>${open0}</b></div>
+      <div class="kpi"><span class="meta">Edit / in Arbeit</span><b>${open1}</b></div>
+      <div class="kpi"><span class="meta">Songs betroffen</span><b>${songs.length}</b></div>`;
+
+    $('#todo-songs').innerHTML = songs.length ? songs.map(({ s, items, p }) => `
+      <article class="todo-song">
+        <header class="todo-song__head">
+          <span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span>
+          <button class="label link" data-song="${s.id}">${esc(s.title)}</button>
+          <b class="pct">${p}%</b>
+          <span class="bar"><i style="width:${p}%"></i></span>
+        </header>
+        <ul class="todo-song__list">
+          ${items.map(({ st, v }) => `
+            <li class="${v === 1 ? 'is-halb' : ''}">
+              <span><span class="label">${esc(st.l)}</span><span class="meta">${todoState(st, v)}</span></span>
+              <span class="todo-song__btns">
+                ${todoActions(st, v).map(([nv, l], i) => `<button class="btn btn--klein ${i === 0 ? 'btn--patina' : ''}" data-todo-set="${s.id}|${esc(st.k)}|${nv}">${l}</button>`).join('')}
+                <button class="link meta" data-todo-set="${s.id}|${esc(st.k)}|-1" title="Wird für diesen Song nicht gebraucht">nicht nötig</button>
+              </span>
+            </li>`).join('')}
+        </ul>
+      </article>`).join('') : `<p class="leer">${todoFilter === 'alle' ? 'Nichts offen. Stark! 🤘' : 'In dieser Auswahl ist nichts offen.'}</p>`;
+  }
+
+  $('#studio-todos').addEventListener('click', (e) => {
+    const w = e.target.closest('[data-todo-who]');
+    if (w) { todoWho = w.dataset.todoWho; renderTodos(); return; }
+    const f = e.target.closest('[data-todo-filter]');
+    if (f) { todoFilter = f.dataset.todoFilter; $$('[data-todo-filter]').forEach((x) => x.classList.toggle('is-on', x === f)); renderTodos(); return; }
+    const t = e.target.closest('[data-todo-set]');
+    if (t) {
+      const [sid, k, v] = t.dataset.todoSet.split('|');
+      setStep(songById(sid), stepByKey(k), +v);
+      return;
+    }
+    const sb = e.target.closest('[data-song]');
+    if (sb) openDrawer(+sb.dataset.song);
+  });
+
   /* ================= SONG-DETAIL ================= */
   const drawer = $('#drawer');
   function openDrawer(id) {
@@ -442,7 +540,7 @@
   function renderAll() {
     $('#me-name').textContent = S.me.name;
     $('#me-avatar').textContent = ini(S.me.name);
-    renderHome(); renderCal(); renderStudio(); renderProfile(false);
+    renderHome(); renderCal(); renderStudio(); renderTodos(); renderProfile(false);
     if (curId && !drawer.hidden) fillDrawer(false);
   }
 
@@ -468,6 +566,7 @@
     try {
       await load();
       $('#loading').hidden = true;
+      setStudioView(studioView);
       let view = (location.hash || '').slice(1);
       if (!['home', 'kalender', 'studio', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
       show(view);

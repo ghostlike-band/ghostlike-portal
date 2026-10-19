@@ -273,3 +273,36 @@ fieldset.feld { border: 0; padding: 0; margin: 0; }
 .side__user .link { font: inherit; }
 .avatar--knopf { border: 0; cursor: pointer; padding: 0; font: inherit; font-family: var(--f-display); font-stretch: 125%; font-weight: 900; font-size: 14px; }
 .avatar--knopf:hover { background: var(--kalkweiss); }
+
+/* Studio: Umschalter Tabelle / Meine To-dos */
+.studio-tabs { display: flex; gap: 0; margin-bottom: 18px; border-bottom: 1px solid var(--linie); }
+.studio-tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; margin-bottom: -1px; cursor: pointer; font-family: var(--f-display); font-stretch: 112%; font-weight: 800; font-size: 13px; text-transform: uppercase; color: var(--kalk); display: inline-flex; gap: 8px; align-items: center; }
+.studio-tab:hover { color: var(--kalkweiss); }
+.studio-tab.is-on { color: var(--kalkweiss); border-color: var(--akzent); }
+.studio-tab__n:not(:empty) { background: var(--akzent); color: var(--schwarz); font-size: 11px; padding: 1px 7px; }
+#studio-todos[hidden], #studio-matrix[hidden] { display: none; }
+
+.todo-sum { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 1px; background: var(--linie); border: 1px solid var(--linie); margin-bottom: 18px; }
+.todo-sum > * { background: var(--schiefer); padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.todo-sum b { font-family: var(--f-display); font-stretch: 125%; font-weight: 900; font-size: 28px; color: var(--kalkweiss); line-height: 1; }
+.todo-sum__big .bar { width: 100%; }
+.todo-songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; }
+.todo-song { background: var(--schiefer); border: 1px solid var(--linie); }
+.todo-song__head { display: grid; grid-template-columns: 30px 1fr auto; gap: 6px 10px; align-items: center; padding: 14px 16px 12px; border-bottom: 1px solid var(--linie); }
+.todo-song__head .label { font-size: 15px; text-align: left; }
+.todo-song__head .label:hover { color: var(--akzent); }
+.todo-song__head .pct { font-family: var(--f-display); font-stretch: 125%; font-weight: 900; color: var(--kalkweiss); }
+.todo-song__head .bar { grid-column: 2 / 4; height: 4px; }
+.todo-song__list { list-style: none; margin: 0; padding: 0; }
+.todo-song__list li { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--linie); }
+.todo-song__list li:first-child { border-top: 0; }
+.todo-song__list li > span:first-child { display: grid; gap: 2px; }
+.todo-song__list li.is-halb .label::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; background: linear-gradient(135deg, var(--akzent) 50%, transparent 50%); border: 1px solid var(--akzent); vertical-align: 0; }
+.todo-song__btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.todo-song__btns .btn { padding: 7px 10px; font-size: 11px; }
+@media (max-width: 700px) {
+  .todo-sum { grid-template-columns: 1fr 1fr; }
+  .todo-sum__big { grid-column: 1 / -1; }
+  .todo-song__list li { grid-template-columns: 1fr; }
+  .todo-song__btns { justify-content: flex-start; }
+}

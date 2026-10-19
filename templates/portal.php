@@ -171,6 +171,26 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				</div>
 			</header>
 			<div class="album-bar"><div class="bar bar--dick"><i id="studio-bar"></i></div></div>
+			<div class="studio-tabs" role="tablist" aria-label="Ansicht">
+				<button class="studio-tab is-on" role="tab" aria-selected="true" data-studio="matrix">Tabelle</button>
+				<button class="studio-tab" role="tab" aria-selected="false" data-studio="todos">Meine To-dos <span class="studio-tab__n" id="todo-n"></span></button>
+			</div>
+
+			<div id="studio-todos" hidden>
+				<div class="toolbar">
+					<div class="filter" id="todo-who"></div>
+					<div class="filter">
+						<span class="meta">Zeigen:</span>
+						<button class="chip is-on" data-todo-filter="alle">Alles offen</button>
+						<button class="chip" data-todo-filter="rec">Aufnehmen</button>
+						<button class="chip" data-todo-filter="edit">Editieren</button>
+					</div>
+				</div>
+				<div class="todo-sum" id="todo-sum"></div>
+				<div class="todo-songs" id="todo-songs"></div>
+			</div>
+
+			<div id="studio-matrix">
 			<div class="toolbar">
 				<div class="filter" id="member-filter"></div>
 				<div class="filter">
@@ -191,6 +211,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<input id="new-song" placeholder="Neuer Song (Arbeitstitel)" maxlength="190" aria-label="Neuer Song">
 				<button class="btn btn--klein" type="submit">+ Song anlegen</button>
 			</form>
+			</div>
 			<div class="studio-bottom">
 				<article class="card">
 					<div class="card__row"><span class="meta">Aufnahmeplan · nächste Studio-Sessions</span><button class="link meta" data-goto="kalender">+ im Kalender ↗</button></div>
