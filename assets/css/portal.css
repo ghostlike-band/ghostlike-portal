@@ -349,3 +349,7 @@ body.has-player .drawer__panel { padding-bottom: 110px; }
 .drawer__head .display-m { overflow-wrap: anywhere; }
 .drawer__head .btn { flex: none; }
 @media (max-width: 600px) { .drawer__head .btn { padding: 8px 10px; } .drawer__panel { padding: 20px 16px; } }
+
+.sep__toggle { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
+.sep__toggle:hover .meta { color: var(--kalkweiss); }
+tr.sep--done td { border-top: 1px solid var(--linie-stark); }

@@ -247,6 +247,8 @@
   });
 
   /* ================= STUDIO ================= */
+  let showDone = false;
+  try { showDone = sessionStorage.getItem('glp-done') === '1'; } catch (e) {}
   function renderStudio() {
     const alb = album(), fresh = alb.filter((s) => !s.released);
     $('#kpi-album').textContent = avg(alb) + '%';
@@ -290,11 +292,15 @@
 
     const list = [...album()];
     if (sort === 'progress') list.sort((a, b) => pct(b) - pct(a)); else list.sort((a, b) => a.nr - b.nr || a.id - b.id);
+    const active = list.filter((s) => pct(s) < 100);
+    const done = list.filter((s) => pct(s) === 100).sort((a, b) => a.nr - b.nr || a.id - b.id);
     const pool = S.songs.filter((s) => !s.album);
+    const cols = ordered.length + 1;
     const m = $('#matrix');
     m.classList.toggle('has-focus', !!focus);
-    m.innerHTML = `<thead>${g1}${g2}</thead><tbody>${list.map(row).join('')}
-      ${pool.length ? `<tr class="sep"><td colspan="${ordered.length + 1}"><span class="meta">Song-Pool · nicht auf dem Album</span></td></tr>${pool.map(row).join('')}` : ''}</tbody>`;
+    m.innerHTML = `<thead>${g1}${g2}</thead><tbody>${active.map(row).join('') || `<tr><td colspan="${cols}" class="leer">Alle Album-Songs sind fertig. 🤘</td></tr>`}
+      ${done.length ? `<tr class="sep sep--done"><td colspan="${cols}"><button class="sep__toggle" data-toggle-done aria-expanded="${showDone}"><span class="meta">${showDone ? '▾' : '▸'} Abgeschlossen · ${done.length} ${done.length === 1 ? 'Song' : 'Songs'} bei 100 %</span></button></td></tr>${showDone ? done.map(row).join('') : ''}` : ''}
+      ${pool.length ? `<tr class="sep"><td colspan="${cols}"><span class="meta">Song-Pool · nicht auf dem Album</span></td></tr>${pool.map(row).join('')}` : ''}</tbody>`;
 
     const sessions = S.events.filter((e) => e.type === 'studio');
     $('#sessions').innerHTML = sessions.length ? sessions.map((e) => `
@@ -309,7 +315,9 @@
     if (!song || !step) return;
     const before = stateOf(song, step);
     const v = value === undefined ? nextOf(step, before) : value;
+    const wasDone = pct(song) === 100;
     song.st[step.k] = v;
+    if (!wasDone && pct(song) === 100 && song.album) setTimeout(() => toast(`🎉 ${song.title} ist fertig – ab in „Abgeschlossen“`), 50);
     localLog(`${step.l} · ${song.title} → ${label(step, v)}`);
     renderAll();
     const c = $(`[data-cell="${song.id}|${step.k}"]`); if (c) c.classList.add('pop');
@@ -318,6 +326,11 @@
   }
 
   $('#matrix').addEventListener('click', (e) => {
+    if (e.target.closest('[data-toggle-done]')) {
+      showDone = !showDone;
+      try { sessionStorage.setItem('glp-done', showDone ? '1' : '0'); } catch (err) {}
+      renderStudio(); return;
+    }
     const c = e.target.closest('[data-cell]');
     if (c) { const [sid, k] = c.dataset.cell.split('|'); setStep(songById(sid), stepByKey(k)); return; }
     const sb = e.target.closest('[data-song]'); if (sb) openDrawer(+sb.dataset.song);
