@@ -80,10 +80,10 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<button data-view="pr"><span class="meta">05</span>PR</button>
 		</nav>
 		<div class="side__user">
-			<span class="avatar" id="me-avatar"></span>
+			<button class="avatar avatar--knopf" id="me-avatar" data-goto="profil" title="Mein Profil" aria-label="Mein Profil"></button>
 			<div>
 				<span class="label" id="me-name"></span>
-				<a class="meta link" href="<?php echo esc_url( admin_url( 'profile.php' ) ); ?>">Profil</a> ·
+				<button class="meta link" data-goto="profil">Profil</button> ·
 				<a class="meta link" href="<?php echo esc_url( wp_logout_url( glp_portal_url() ) ); ?>">Abmelden</a>
 			</div>
 		</div>
@@ -200,6 +200,44 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<div class="card__row"><span class="meta">So wird gerechnet</span></div>
 					<p class="klein">Jeder Schritt hat ein Gewicht. <b>Aufgenommen</b> zählt halb, <b>editiert</b> ganz. Was ein Song nicht braucht, setzt ihr auf <b>nicht nötig</b>, dann fällt es aus der Rechnung.<?php if ( current_user_can( 'manage_options' ) ) : ?> Schritte, Gewichte und Zuständige: <a class="link" href="<?php echo esc_url( admin_url( 'options-general.php?page=ghostlike-portal' ) ); ?>">Einstellungen ↗</a><?php endif; ?></p>
 					<ol class="weights" id="weights"></ol>
+				</article>
+			</div>
+		</section>
+
+		<!-- ===== PROFIL ===== -->
+		<section class="view" data-view="profil" hidden>
+			<header class="view__head"><span class="meta">Dein Zugang</span><h1 class="display-l">Mein<br>Profil</h1></header>
+			<div class="profil">
+				<form class="card profil__card" id="pf-about">
+					<span class="meta">Über dich</span>
+					<label class="feld"><span class="meta">Vorname *</span><input id="pf-first" name="first" required maxlength="60" autocomplete="given-name"></label>
+					<label class="feld"><span class="meta">Nachname</span><input id="pf-last" name="last" maxlength="60" autocomplete="family-name"></label>
+					<label class="feld"><span class="meta">Instrumente / Rolle in der Band</span><input id="pf-role" name="role" maxlength="80" placeholder="z. B. Gitarre, Backing Vocals"></label>
+					<p class="klein">Dein Vorname wird im Portal angezeigt und für die Zuständigkeiten im Studio-Tool genutzt. Änderst du ihn, werden deine Zuständigkeiten automatisch mit umbenannt.</p>
+					<button class="btn btn--patina" type="submit">Speichern</button>
+				</form>
+
+				<form class="card profil__card" id="pf-email">
+					<span class="meta">E-Mail-Adresse</span>
+					<label class="feld"><span class="meta">E-Mail</span><input id="pf-mail" name="email" type="email" required autocomplete="email"></label>
+					<label class="feld"><span class="meta">Aktuelles Passwort (zur Bestätigung)</span><input id="pf-mail-pass" name="password" type="password" required autocomplete="current-password"></label>
+					<p class="klein">An die alte Adresse geht zur Sicherheit eine kurze Info.</p>
+					<button class="btn" type="submit">E-Mail ändern</button>
+				</form>
+
+				<form class="card profil__card" id="pf-pass">
+					<span class="meta">Passwort ändern</span>
+					<input type="text" id="pf-login" autocomplete="username" hidden readonly>
+					<label class="feld"><span class="meta">Aktuelles Passwort</span><input id="pf-cur" type="password" required autocomplete="current-password"></label>
+					<label class="feld"><span class="meta">Neues Passwort (mind. 10 Zeichen)</span><input id="pf-new" type="password" minlength="10" required autocomplete="new-password"></label>
+					<label class="feld"><span class="meta">Neues Passwort wiederholen</span><input id="pf-new2" type="password" minlength="10" required autocomplete="new-password"></label>
+					<button class="btn" type="submit">Passwort ändern</button>
+				</form>
+
+				<article class="card profil__card">
+					<span class="meta">Die Band</span>
+					<ul class="band-list" id="pf-band"></ul>
+					<p class="klein" id="pf-meta"></p>
 				</article>
 			</div>
 		</section>

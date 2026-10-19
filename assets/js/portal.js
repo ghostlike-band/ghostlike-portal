@@ -63,7 +63,8 @@
     });
   }
   const ini = (name) => initials[String(name).toLowerCase()] || String(name).slice(0, 2).toUpperCase();
-  const av = (name, cls = '') => `<span class="avatar avatar--klein ${cls}" title="${esc(name)}">${esc(ini(name))}</span>`;
+  const roleOf = (name) => { const m = S && S.members.find((x) => x.name.toLowerCase() === String(name).toLowerCase()); return m && m.role ? ' · ' + m.role : ''; };
+  const av = (name, cls = '') => `<span class="avatar avatar--klein ${cls}" title="${esc(name + roleOf(name))}">${esc(ini(name))}</span>`;
   const fmt = (d, o) => new Date(d).toLocaleDateString('de-DE', o);
   const fmtTime = (d) => new Date(d).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   function ago(t) {
@@ -404,11 +405,44 @@
     catch (err) { toast(err.message); }
   });
 
+  /* ================= PROFIL ================= */
+  function renderProfile(force) {
+    const me = S.me;
+    const set = (id, v) => { const el = $(id); if (el && (force || document.activeElement !== el)) el.value = v || ''; };
+    if (force || !$('#pf-about').dataset.filled) {
+      set('#pf-first', me.first); set('#pf-last', me.last); set('#pf-role', me.role); set('#pf-mail', me.email);
+      $('#pf-about').dataset.filled = '1';
+    }
+    $('#pf-login').value = me.login;
+    $('#pf-band').innerHTML = S.members.map((m) => `<li class="${m.id === me.id ? 'is-me' : ''}">${av(m.name)}<span><span class="label">${esc(m.name)}</span><span class="meta">${esc(m.role || '–')}</span></span></li>`).join('');
+    $('#pf-meta').textContent = `Benutzername: ${me.login} · ${me.admin ? 'Admin' : 'Bandmitglied'}`;
+  }
+  async function submit(form, fn) {
+    const btn = $('button[type=submit]', form);
+    btn.disabled = true;
+    try { await fn(); } catch (err) { toast(err.message); }
+    btn.disabled = false;
+  }
+  $('#pf-about').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
+    S.me = await api('profile', { method: 'POST', body: { first: $('#pf-first').value.trim(), last: $('#pf-last').value.trim(), role: $('#pf-role').value.trim() } });
+    await load(); renderProfile(true); toast('Gespeichert');
+  }); });
+  $('#pf-email').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
+    S.me = await api('profile/email', { method: 'POST', body: { email: $('#pf-mail').value.trim(), password: $('#pf-mail-pass').value } });
+    $('#pf-mail-pass').value = ''; renderProfile(true); toast('E-Mail geändert');
+  }); });
+  $('#pf-pass').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
+    if ($('#pf-new').value !== $('#pf-new2').value) throw new Error('Die neuen Passwörter stimmen nicht überein.');
+    await api('profile/password', { method: 'POST', body: { current: $('#pf-cur').value, new: $('#pf-new').value } });
+    toast('Passwort geändert – die Seite lädt neu');
+    setTimeout(() => location.reload(), 1200); // neues Login-Cookie → frische Sitzung
+  }); });
+
   /* ================= LADEN ================= */
   function renderAll() {
     $('#me-name').textContent = S.me.name;
     $('#me-avatar').textContent = ini(S.me.name);
-    renderHome(); renderCal(); renderStudio();
+    renderHome(); renderCal(); renderStudio(); renderProfile(false);
     if (curId && !drawer.hidden) fillDrawer(false);
   }
 
@@ -435,7 +469,7 @@
       await load();
       $('#loading').hidden = true;
       let view = (location.hash || '').slice(1);
-      if (!['home', 'kalender', 'studio', 'pool', 'pr'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
+      if (!['home', 'kalender', 'studio', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
       show(view);
     } catch (err) {
       $('#loading').textContent = 'Konnte Daten nicht laden: ' + err.message;

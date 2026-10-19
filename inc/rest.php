@@ -26,6 +26,9 @@ add_action( 'rest_api_init', function () {
 	$r( '/attendance', 'POST', 'glp_rest_attendance' );
 	$r( '/probe-off', 'POST', 'glp_rest_probe_off' );
 	$r( '/ical-reset', 'POST', 'glp_rest_ical_reset' );
+	$r( '/profile', 'POST', 'glp_rest_profile' );
+	$r( '/profile/email', 'POST', 'glp_rest_profile_email' );
+	$r( '/profile/password', 'POST', 'glp_rest_profile_password' );
 	// Kalender-Abo: ohne Login, geschützt über den persönlichen Schlüssel.
 	$r( '/ical/(?P<user>\d+)/(?P<token>[A-Za-z0-9]{32})', 'GET', 'glp_rest_ical', '__return_true' );
 } );
@@ -43,7 +46,7 @@ function glp_err( $msg, $code = 400 ) {
 function glp_rest_state() {
 	$events = glp_events( 10 );
 	return glp_ok( array(
-		'me'         => array( 'id' => get_current_user_id(), 'name' => glp_user_name( get_current_user_id() ), 'admin' => current_user_can( 'manage_options' ) ),
+		'me'         => glp_me(),
 		'members'    => glp_members(),
 		'groups'     => glp_groups(),
 		'steps'      => glp_steps(),
@@ -379,4 +382,98 @@ function glp_rest_ical( WP_REST_Request $req ) {
 	};
 	echo implode( "\r\n", array_map( $fold, $out ) ) . "\r\n"; // phpcs:ignore
 	exit;
+}
+
+/* ================= PROFIL ================= */
+
+function glp_me() {
+	$u = wp_get_current_user();
+	return array(
+		'id'       => (int) $u->ID,
+		'name'     => glp_user_name( $u->ID ),
+		'first'    => (string) $u->first_name,
+		'last'     => (string) $u->last_name,
+		'role'     => (string) get_user_meta( $u->ID, 'glp_role_text', true ),
+		'email'    => (string) $u->user_email,
+		'login'    => (string) $u->user_login,
+		'admin'    => current_user_can( 'manage_options' ),
+	);
+}
+
+function glp_rest_profile( WP_REST_Request $req ) {
+	$u     = wp_get_current_user();
+	$first = sanitize_text_field( (string) $req->get_param( 'first' ) );
+	$last  = sanitize_text_field( (string) $req->get_param( 'last' ) );
+	$role  = mb_substr( sanitize_text_field( (string) $req->get_param( 'role' ) ), 0, 80 );
+	if ( $first === '' ) {
+		return glp_err( 'Bitte einen Vornamen angeben.' );
+	}
+	$old = glp_user_name( $u->ID );
+	wp_update_user( array( 'ID' => $u->ID, 'first_name' => $first, 'last_name' => $last, 'display_name' => trim( $first . ' ' . $last ) ) );
+	update_user_meta( $u->ID, 'glp_role_text', $role );
+
+	// Zuständigkeiten hängen am Vornamen: alten Namen in den Arbeitsschritten ersetzen
+	if ( strcasecmp( $old, $first ) !== 0 ) {
+		$steps   = glp_steps();
+		$changed = false;
+		foreach ( $steps as &$st ) {
+			foreach ( (array) $st['who'] as $i => $w ) {
+				if ( strcasecmp( $w, $old ) === 0 ) {
+					$st['who'][ $i ] = $first;
+					$changed         = true;
+				}
+			}
+		}
+		unset( $st );
+		if ( $changed ) {
+			update_option( 'glp_steps', $steps );
+		}
+		// … und in eigenen Terminen („Wer ist dabei?“)
+		global $wpdb;
+		foreach ( $wpdb->get_results( $wpdb->prepare( 'SELECT id, who FROM ' . glp_table( 'events' ) . ' WHERE who LIKE %s', '%' . $wpdb->esc_like( $old ) . '%' ) ) as $ev ) {
+			$who = array_map( fn( $w ) => strcasecmp( $w, $old ) === 0 ? $first : $w, (array) json_decode( (string) $ev->who, true ) );
+			$wpdb->update( glp_table( 'events' ), array( 'who' => wp_json_encode( $who ) ), array( 'id' => $ev->id ) );
+		}
+		glp_log( $old . ' heißt jetzt ' . $first );
+	}
+	return glp_ok( glp_me() );
+}
+
+function glp_rest_profile_email( WP_REST_Request $req ) {
+	$u     = wp_get_current_user();
+	$email = sanitize_email( (string) $req->get_param( 'email' ) );
+	$pass  = (string) $req->get_param( 'password' );
+	if ( ! wp_check_password( $pass, $u->user_pass, $u->ID ) ) {
+		return glp_err( 'Das aktuelle Passwort stimmt nicht.' ); // kein 403: das Portal würde sonst „Sitzung abgelaufen“ melden
+	}
+	if ( ! is_email( $email ) ) {
+		return glp_err( 'Bitte eine gültige E-Mail-Adresse angeben.' );
+	}
+	$other = email_exists( $email );
+	if ( $other && (int) $other !== (int) $u->ID ) {
+		return glp_err( 'Diese E-Mail-Adresse wird schon von einem anderen Zugang benutzt.' );
+	}
+	$res = wp_update_user( array( 'ID' => $u->ID, 'user_email' => $email ) ); // schickt eine Info an die alte Adresse
+	if ( is_wp_error( $res ) ) {
+		return glp_err( $res->get_error_message() );
+	}
+	return glp_ok( glp_me() );
+}
+
+function glp_rest_profile_password( WP_REST_Request $req ) {
+	$u   = wp_get_current_user();
+	$cur = (string) $req->get_param( 'current' );
+	$new = (string) $req->get_param( 'new' );
+	if ( ! wp_check_password( $cur, $u->user_pass, $u->ID ) ) {
+		return glp_err( 'Das aktuelle Passwort stimmt nicht.' ); // kein 403: das Portal würde sonst „Sitzung abgelaufen“ melden
+	}
+	if ( strlen( $new ) < 10 ) {
+		return glp_err( 'Das neue Passwort braucht mindestens 10 Zeichen.' );
+	}
+	// setzt auch das Login-Cookie neu und schickt die Bestätigungs-Mail
+	$res = wp_update_user( array( 'ID' => $u->ID, 'user_pass' => $new ) );
+	if ( is_wp_error( $res ) ) {
+		return glp_err( $res->get_error_message() );
+	}
+	return glp_ok( array( 'ok' => true ) );
 }

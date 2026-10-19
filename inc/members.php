@@ -204,7 +204,7 @@ function glp_members_page() {
 				}
 				?>
 				<tr>
-					<td><strong><?php echo esc_html( trim( $u->first_name . ' ' . $u->last_name ) ?: $u->display_name ); ?></strong><br><span class="description"><?php echo esc_html( $u->user_login ); ?></span><?php echo trim( $u->first_name ) === '' ? '<br><span style="color:#b32d2e">Vorname fehlt</span>' : ''; ?></td>
+					<td><strong><?php echo esc_html( trim( $u->first_name . ' ' . $u->last_name ) ?: $u->display_name ); ?></strong><br><span class="description"><?php echo esc_html( $u->user_login ); ?><?php echo get_user_meta( $u->ID, 'glp_role_text', true ) ? ' · ' . esc_html( get_user_meta( $u->ID, 'glp_role_text', true ) ) : ''; ?></span><?php echo trim( $u->first_name ) === '' ? '<br><span style="color:#b32d2e">Vorname fehlt</span>' : ''; ?></td>
 					<td><a href="mailto:<?php echo esc_attr( $u->user_email ); ?>"><?php echo esc_html( $u->user_email ); ?></a></td>
 					<td><?php echo $is_adm ? 'Admin' : 'Bandmitglied'; ?></td>
 					<td><?php echo esc_html( $status ); ?></td>

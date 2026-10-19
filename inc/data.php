@@ -51,7 +51,7 @@ function glp_members() {
 	$out   = array();
 	foreach ( $users as $u ) {
 		$name  = trim( $u->first_name ) ?: $u->display_name;
-		$out[] = array( 'id' => (int) $u->ID, 'name' => $name );
+		$out[] = array( 'id' => (int) $u->ID, 'name' => $name, 'role' => (string) get_user_meta( $u->ID, 'glp_role_text', true ) );
 	}
 	return $out;
 }

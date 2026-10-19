@@ -261,3 +261,15 @@ fieldset.feld { border: 0; padding: 0; margin: 0; }
 .simple .display-l { font-size: clamp(32px, 9vw, 52px); }
 .simple p { margin: 0; font-size: 17px; line-height: 1.6; }
 .simple .aktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.profil { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; }
+.profil__card { align-items: stretch; }
+.profil__card .feld { width: 100%; }
+.profil__card .btn { align-self: flex-start; }
+.band-list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.band-list li { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--linie); }
+.band-list .label { font-size: 14px; }
+.band-list .meta { display: block; margin-top: 2px; }
+.band-list li.is-me .label::after { content: " · du"; color: var(--akzent); }
+.side__user .link { font: inherit; }
+.avatar--knopf { border: 0; cursor: pointer; padding: 0; font: inherit; font-family: var(--f-display); font-stretch: 125%; font-weight: 900; font-size: 14px; }
+.avatar--knopf:hover { background: var(--kalkweiss); }
