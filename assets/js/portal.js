@@ -82,7 +82,8 @@
   }
   const songById = (id) => S.songs.find((s) => s.id === +id);
   const stepByKey = (k) => S.steps.find((s) => s.k === k);
-  function replaceSong(song) { const i = S.songs.findIndex((s) => s.id === song.id); if (i >= 0) S.songs[i] = song; else S.songs.push(song); }
+  function normSong(s) { if (Array.isArray(s.st)) s.st = {}; if (Array.isArray(s.meta)) s.meta = {}; if (Array.isArray(s.flags)) s.flags = {}; return s; }
+  function replaceSong(song) { normSong(song); const i = S.songs.findIndex((s) => s.id === song.id); if (i >= 0) S.songs[i] = song; else S.songs.push(song); }
   function localLog(txt) { S.log.unshift({ who: S.me.name, txt, t: Date.now() }); }
 
   /* ================= NAVIGATION ================= */
@@ -184,6 +185,7 @@
           <span class="label">${esc(e.title)}</span>
           <span class="meta">${esc(typeLabel(e.type))}${e.type !== 'probe' ? ' · ' + fmtTime(e.start) : ''}${e.place ? ' · ' + esc(e.place) : ''}</span>
           ${e.who && e.who.length ? `<span class="wer">${e.who.map((w) => av(w)).join('')}</span>` : ''}
+          ${planItems(e).length ? `<span class="meta meta--hell cal__plan">Geplant: ${esc(planSummary(planItems(e)))}</span>` : ''}
           <span class="cal__tools">${addLink(e)}${e.type === 'probe'
             ? `<button class="link meta" data-probe="${esc(e.start.slice(0, 10))}" data-off="${e.cancelled ? 0 : 1}">${e.cancelled ? '↺ Findet doch statt' : '✕ Probe fällt aus'}</button>`
             : `<button class="link meta" data-del-event="${e.id}">✕ Löschen</button>`}</span>
@@ -217,17 +219,30 @@
     evForm.hidden = !evForm.hidden;
     if (!evForm.hidden) {
       $('#ev-who').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${esc(m.name)}"><span>${esc(m.name)}</span></label>`).join('');
+      $('#ev-plan').innerHTML = planPicker(new Set());
+      syncPlanBox(); titleAuto = true;
       if (!$('#ev-date').value) $('#ev-date').value = new Date().toISOString().slice(0, 10);
       $('#ev-title').focus();
     }
   });
   $('#event-cancel').addEventListener('click', () => { evForm.hidden = true; });
+  // Studio-Session: Songs & Schritte auswählen, Titel ergibt sich daraus (solange niemand selbst tippt)
+  let titleAuto = true;
+  const syncPlanBox = () => { $('#ev-plan-box').hidden = $('#ev-type').value !== 'studio'; };
+  $('#ev-type').addEventListener('change', syncPlanBox);
+  $('#ev-title').addEventListener('input', () => { titleAuto = $('#ev-title').value.trim() === ''; });
+  $('#ev-plan').addEventListener('change', () => {
+    if (!titleAuto) return;
+    const items = readPlan($('#ev-plan')).map((p) => ({ s: songById(p.s), st: stepByKey(p.k) })).filter((x) => x.s && x.st);
+    $('#ev-title').value = planSummary(items).slice(0, 120);
+  });
   evForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = {
       type: $('#ev-type').value, title: $('#ev-title').value.trim(), date: $('#ev-date').value,
       time: $('#ev-time').value, place: $('#ev-place').value.trim(),
       who: $$('#ev-who input:checked').map((i) => i.value),
+      plan: $('#ev-type').value === 'studio' ? readPlan($('#ev-plan')) : [],
     };
     try {
       await api('events', { method: 'POST', body });
@@ -252,6 +267,21 @@
   /* ================= STUDIO ================= */
   let showDone = false;
   try { showDone = sessionStorage.getItem('glp-done') === '1'; } catch (e) {}
+  const orderedSteps = () => Object.keys(S.groups).flatMap((g) => S.steps.filter((s) => s.g === g));
+  const byNr = (a, b) => a.nr - b.nr || a.id - b.id;
+  const cellCls = (st, v) => (v === -1 ? 'sna' : isWip(st, v) ? 'sw' : 's' + v);
+  const relItems = () => S.release || [];
+  const relOf = (s) => (s.meta && s.meta.rel && !Array.isArray(s.meta.rel) ? s.meta.rel : {});
+  const relCount = (s) => { const r = relOf(s); return relItems().filter((it) => !!r[it.k]).length; };
+  const showRelease = (s) => s.album && (pct(s) === 100 || s.released);
+  function songTags(s) {
+    const r = relOf(s);
+    return [s.released ? '<span class="tag">Released</span>' : '', s.flags.single ? '<span class="tag tag--patina">Single</span>' : '', s.flags.video ? '<span class="tag">Video</span>' : '',
+      showRelease(s) && !s.released ? `<span class="tag tag--leer" title="Release-Checkliste">Release ${relCount(s)}/${relItems().length}</span>` : '',
+      r.date ? `<span class="tag">${esc(fmt(r.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span>` : ''].join('');
+  }
+  const grip = (s) => (sort === 'track' && s.album ? `<span class="grip" data-grip="${s.id}" title="Ziehen zum Sortieren" aria-hidden="true">⋮⋮</span>` : '');
+
   function renderStudio() {
     const alb = album(), fresh = alb.filter((s) => !s.released);
     $('#kpi-album').textContent = avg(alb) + '%';
@@ -270,21 +300,21 @@
       const n = S.steps.filter((s) => s.g === g).length;
       if (n) g1 += `<th colspan="${n}" class="grp-start">${esc(S.groups[g])}</th>`;
     });
-    const ordered = Object.keys(S.groups).flatMap((g) => S.steps.filter((s) => s.g === g));
+    const ordered = orderedSteps();
     ordered.forEach((s) => { g2 += `<th class="${s.g !== last ? 'grp-start' : ''}">${esc(s.l)}</th>`; last = s.g; });
     g1 += '</tr>'; g2 += '</tr>';
 
     const row = (s) => {
       const p = pct(s); let l = '';
       const cells = ordered.map((st) => {
-        const v = stateOf(s, st), cls = v === -1 ? 'sna' : isWip(st, v) ? 'sw' : 's' + v;
+        const v = stateOf(s, st);
         const mine = focus && isMine(st, focus) ? 'is-mine' : '';
-        const html = `<td class="${st.g !== l ? 'grp-start' : ''}"><button class="cell ${cls} ${mine}" data-cell="${s.id}|${esc(st.k)}" title="${esc(st.l)} — ${label(st, v)}${st.who && st.who.length ? ' · ' + esc(st.who.join(' / ')) : ''}"><i></i></button></td>`;
+        const html = `<td class="${st.g !== l ? 'grp-start' : ''}"><button class="cell ${cellCls(st, v)} ${mine}" data-cell="${s.id}|${esc(st.k)}" title="${esc(st.l)} — ${label(st, v)}${st.who && st.who.length ? ' · ' + esc(st.who.join(' / ')) : ''}"><i></i></button></td>`;
         l = st.g; return html;
       }).join('');
-      const tags = [s.released ? '<span class="tag">Released</span>' : '', s.flags.single ? '<span class="tag tag--patina">Single</span>' : '', s.flags.video ? '<span class="tag">Video</span>' : ''].join('');
-      return `<tr class="${s.released ? 'is-released' : ''} ${!s.album ? 'is-pool' : ''}">
-        <td class="song-col"><div class="song-cell">${playBtn(s)}<button class="song-btn" data-song="${s.id}">
+      const tags = songTags(s);
+      return `<tr class="${s.released ? 'is-released' : ''} ${!s.album ? 'is-pool' : ''}" data-row="${s.id}" data-album="${s.album ? 1 : 0}">
+        <td class="song-col"><div class="song-cell">${grip(s)}${playBtn(s)}<button class="song-btn" data-song="${s.id}">
           <span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span>
           <span class="song-title"><span class="label">${esc(s.title)}</span></span>
           <span class="pct">${p}%</span>
@@ -293,26 +323,109 @@
         </button></div></td>${cells}</tr>`;
     };
 
+    // Handy: eine Karte pro Song, Schritte nach Gruppen
+    const card = (s) => {
+      const p = pct(s), tags = songTags(s);
+      const groups = Object.keys(S.groups).map((g) => {
+        const steps = S.steps.filter((st) => st.g === g); if (!steps.length) return '';
+        return `<div class="scard__grp"><span class="meta">${esc(S.groups[g])}</span><div class="scard__cells">${steps.map((st) => {
+          const v = stateOf(s, st), mine = focus && isMine(st, focus) ? 'is-mine' : '';
+          return `<button class="cell cell--mini ${cellCls(st, v)} ${mine}" data-cell="${s.id}|${esc(st.k)}" aria-label="${esc(st.l)}: ${label(st, v)}"><i></i><span>${esc(st.l)}</span></button>`;
+        }).join('')}</div></div>`;
+      }).join('');
+      return `<article class="scard ${!s.album ? 'is-pool' : ''}" data-row="${s.id}" data-album="${s.album ? 1 : 0}">
+        <header class="scard__head">${grip(s)}${playBtn(s)}
+          <button class="scard__title" data-song="${s.id}"><span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span><span class="label">${esc(s.title)}</span></button>
+          <b class="pct">${p}%</b></header>
+        <span class="bar"><i style="width:${p}%"></i></span>
+        ${tags ? `<span class="tags">${tags}</span>` : ''}
+        <div class="scard__body">${groups}</div>
+      </article>`;
+    };
+
     const list = [...album()];
-    if (sort === 'progress') list.sort((a, b) => pct(b) - pct(a)); else list.sort((a, b) => a.nr - b.nr || a.id - b.id);
+    if (sort === 'progress') list.sort((a, b) => pct(b) - pct(a)); else list.sort(byNr);
     const active = list.filter((s) => pct(s) < 100);
-    const done = list.filter((s) => pct(s) === 100).sort((a, b) => a.nr - b.nr || a.id - b.id);
+    const done = list.filter((s) => pct(s) === 100).sort(byNr);
     const pool = S.songs.filter((s) => !s.album);
     const cols = ordered.length + 1;
+    const doneBtn = `<button class="sep__toggle" data-toggle-done aria-expanded="${showDone}"><span class="meta">${showDone ? '▾' : '▸'} Abgeschlossen · ${done.length} ${done.length === 1 ? 'Song' : 'Songs'} bei 100 %</span></button>`;
     const m = $('#matrix');
     m.classList.toggle('has-focus', !!focus);
     m.innerHTML = `<thead>${g1}${g2}</thead><tbody>${active.map(row).join('') || `<tr><td colspan="${cols}" class="leer">Alle Album-Songs sind fertig. 🤘</td></tr>`}
-      ${done.length ? `<tr class="sep sep--done"><td colspan="${cols}"><button class="sep__toggle" data-toggle-done aria-expanded="${showDone}"><span class="meta">${showDone ? '▾' : '▸'} Abgeschlossen · ${done.length} ${done.length === 1 ? 'Song' : 'Songs'} bei 100 %</span></button></td></tr>${showDone ? done.map(row).join('') : ''}` : ''}
+      ${done.length ? `<tr class="sep sep--done"><td colspan="${cols}">${doneBtn}</td></tr>${showDone ? done.map(row).join('') : ''}` : ''}
       ${pool.length ? `<tr class="sep"><td colspan="${cols}"><span class="meta">Song-Pool · nicht auf dem Album</span></td></tr>${pool.map(row).join('')}` : ''}</tbody>`;
+    const c = $('#cards');
+    c.classList.toggle('has-focus', !!focus);
+    c.innerHTML = (active.map(card).join('') || '<p class="leer">Alle Album-Songs sind fertig. 🤘</p>')
+      + (done.length ? `<div class="sep sep--done">${doneBtn}</div>` + (showDone ? done.map(card).join('') : '') : '')
+      + (pool.length ? `<div class="sep"><span class="meta">Song-Pool · nicht auf dem Album</span></div>${pool.map(card).join('')}` : '');
 
-    const sessions = S.events.filter((e) => e.type === 'studio');
-    $('#sessions').innerHTML = sessions.length ? sessions.map((e) => `
-      <li><span class="meta">${esc(fmt(e.start, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</span>
-      <span><span class="label">${esc(e.title)}</span><br><span class="meta">${esc(e.place || '')} · ${fmtTime(e.start)}</span></span>
-      <span class="wer">${(e.who || []).map((w) => av(w)).join('')}</span></li>`).join('')
-      : '<li class="leer">Noch keine Studio-Sessions geplant. Leg im Kalender eine an.</li>';
+    renderSessions();
     $('#weights').innerHTML = ordered.map((s) => `<li><span>${esc(s.l)}</span><span class="meta">×${esc(s.w)}</span></li>`).join('');
   }
+
+  /* ================= STUDIO-SESSIONS & PLAN ================= */
+  const planDone = (st, v) => v === -1 || v === 2 || (st.t === 'rec' && v === 1);
+  const planItems = (e) => (e.plan || []).map((p) => ({ s: songById(p.s), st: stepByKey(p.k) })).filter((x) => x.s && x.st);
+  function planSummary(items) {
+    const by = {};
+    items.forEach(({ s, st }) => { (by[st.l] = by[st.l] || []).push(s.title); });
+    return Object.entries(by).map(([l, t]) => `${l}: ${t.join(', ')}`).join(' · ');
+  }
+  function planPicker(sel) {
+    const html = [...album()].sort(byNr).map((s) => {
+      const steps = S.steps.filter((st) => st.g !== 'post' && (isOpen(stateOf(s, st)) || sel.has(s.id + '|' + st.k)));
+      if (!steps.length) return '';
+      const n = steps.filter((st) => sel.has(s.id + '|' + st.k)).length;
+      return `<details class="plan-song" ${n ? 'open' : ''}><summary><span class="label">${esc(s.title)}</span><span class="meta">${pct(s)}%<b class="plan-song__n">${n ? ' · ' + n + ' gewählt' : ''}</b></span></summary>
+        <div class="who-pick">${steps.map((st) => `<label><input type="checkbox" value="${s.id}|${esc(st.k)}" ${sel.has(s.id + '|' + st.k) ? 'checked' : ''}><span>${esc(st.l)}</span></label>`).join('')}</div></details>`;
+    }).join('');
+    return html || '<p class="meta">Alles aufgenommen – nichts mehr zu planen.</p>';
+  }
+  const readPlan = (box) => $$('input:checked', box).map((i) => { const [sid, k] = i.value.split('|'); return { s: +sid, k }; });
+  document.addEventListener('change', (e) => {
+    const d = e.target.closest('.plan-song'); if (!d) return;
+    const n = $$('input:checked', d).length;
+    $('.plan-song__n', d).textContent = n ? ' · ' + n + ' gewählt' : '';
+  });
+
+  let planEdit = null; // Session, deren Plan gerade bearbeitet wird
+  function renderSessions() {
+    const sessions = S.events.filter((e) => e.type === 'studio');
+    $('#sessions').innerHTML = sessions.length ? sessions.map((e) => {
+      const items = planItems(e), ok = items.filter(({ s, st }) => planDone(st, stateOf(s, st))).length;
+      const editing = planEdit === e.id;
+      return `<li class="session">
+        <span class="meta">${esc(fmt(e.start, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</span>
+        <span><span class="label">${esc(e.title)}</span><br><span class="meta">${esc(e.place || '')}${e.place ? ' · ' : ''}${fmtTime(e.start)}${items.length ? ` · ${ok}/${items.length} erledigt` : ''}</span></span>
+        <span class="wer">${(e.who || []).map((w) => av(w)).join('')}</span>
+        ${items.length && !editing ? `<div class="session__plan">${items.map(({ s, st }) => {
+          const v = stateOf(s, st);
+          return `<button class="plan-item ${planDone(st, v) ? 'is-ok' : ''}" data-cell="${s.id}|${esc(st.k)}" title="Klick = nächster Status (${label(st, v)})"><i class="cell-dot ${cellCls(st, v)}"></i><span class="label">${esc(st.l)}</span><span class="meta">${esc(s.title)}</span></button>`;
+        }).join('')}</div>` : ''}
+        ${editing ? `<div class="session__edit" data-plan-box="${e.id}">${planPicker(new Set((e.plan || []).map((p) => p.s + '|' + p.k)))}
+          <div class="actions"><button class="btn btn--klein btn--patina" data-plan-save="${e.id}">Plan speichern</button><button class="btn btn--klein" data-plan-cancel>Abbrechen</button></div></div>`
+          : `<button class="link meta session__edit-btn" data-plan-edit="${e.id}">${items.length ? '✎ Plan bearbeiten' : '＋ Songs & Schritte planen'}</button>`}
+      </li>`;
+    }).join('') : '<li class="leer">Noch keine Studio-Sessions geplant. Leg im Kalender eine an.</li>';
+  }
+  $('#sessions').addEventListener('click', async (e) => {
+    const c = e.target.closest('[data-cell]');
+    if (c) { const [sid, k] = c.dataset.cell.split('|'); setStep(songById(sid), stepByKey(k)); return; }
+    const ed = e.target.closest('[data-plan-edit]');
+    if (ed) { planEdit = +ed.dataset.planEdit; renderSessions(); return; }
+    if (e.target.closest('[data-plan-cancel]')) { planEdit = null; renderSessions(); return; }
+    const sv = e.target.closest('[data-plan-save]');
+    if (sv) {
+      const id = +sv.dataset.planSave, plan = readPlan($(`[data-plan-box="${id}"]`));
+      try {
+        const r = await api(`events/${id}/plan`, { method: 'POST', body: { plan } });
+        const ev = S.events.find((x) => x.id === id); if (ev) ev.plan = r.plan;
+        planEdit = null; renderSessions(); renderCal(); toast('Plan gespeichert');
+      } catch (err) { toast(err.message); }
+    }
+  });
 
   async function setStep(song, step, value) {
     if (!song || !step) return;
@@ -328,7 +441,8 @@
     catch (err) { song.st[step.k] = before; S.log.shift(); renderAll(); toast(err.message); }
   }
 
-  $('#matrix').addEventListener('click', (e) => {
+  $('#studio-matrix').addEventListener('click', (e) => {
+    if (e.target.closest('[data-grip]')) return;
     if (e.target.closest('[data-toggle-done]')) {
       showDone = !showDone;
       try { sessionStorage.setItem('glp-done', showDone ? '1' : '0'); } catch (err) {}
@@ -342,6 +456,48 @@
   $$('[data-sort]').forEach((c) => c.addEventListener('click', () => {
     sort = c.dataset.sort; $$('[data-sort]').forEach((x) => x.classList.toggle('is-on', x === c)); renderStudio();
   }));
+  /* Tracklist sortieren: am ⋮⋮ ziehen (Maus und Touch, Tabelle und Karten) */
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('[data-grip]'); if (!g) return;
+    e.preventDefault();
+    const row = g.closest('[data-row]');
+    drag = { row, box: row.parentElement, id: +g.dataset.grip, moved: false, pid: e.pointerId };
+    row.classList.add('is-drag'); document.body.classList.add('is-sorting');
+    try { g.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    e.preventDefault();
+    if (e.clientY < 70) scrollBy({ top: -14, behavior: 'instant' }); else if (e.clientY > innerHeight - 70) scrollBy({ top: 14, behavior: 'instant' });
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const over = el && el.closest('[data-row]');
+    if (!over || over === drag.row || over.parentElement !== drag.box || over.dataset.album !== '1') return;
+    const r = over.getBoundingClientRect();
+    over[e.clientY > r.top + r.height / 2 ? 'after' : 'before'](drag.row);
+    drag.moved = true;
+  }, { passive: false });
+  const endDrag = async () => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    d.row.classList.remove('is-drag'); document.body.classList.remove('is-sorting');
+    if (!d.moved) return;
+    // Neue Position aus den Nachbarn ableiten, damit ausgeblendete (abgeschlossene) Songs ihren Platz behalten
+    const sib = (dir) => { let n = d.row[dir]; while (n && !(n.dataset && n.dataset.album === '1' && n.dataset.row)) n = n[dir]; return n ? +n.dataset.row : 0; };
+    const next = sib('nextElementSibling'), prev = sib('previousElementSibling');
+    const ids = [...album()].sort(byNr).map((s) => s.id).filter((id) => id !== d.id);
+    const at = next ? ids.indexOf(next) : prev ? ids.indexOf(prev) + 1 : ids.length;
+    ids.splice(at < 0 ? ids.length : at, 0, d.id);
+    ids.forEach((id, i) => { const s = songById(id); if (s) s.nr = i + 1; });
+    renderAll();
+    try {
+      const r = await api('songs/order', { method: 'POST', body: { ids } });
+      S.songs = r.songs.map(normSong); renderAll(); toast('Reihenfolge gespeichert');
+    } catch (err) { toast(err.message); load().catch(() => {}); }
+  };
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+
   $('#add-song').addEventListener('submit', async (e) => {
     e.preventDefault();
     const inp = $('#new-song'), title = inp.value.trim();
@@ -574,6 +730,62 @@
     catch (err) { toast(err.message); }
   });
 
+  /* ================= DATEIEN (Tabs, Noten …) ================= */
+  const filesOf = (sid) => (S.files && S.files[sid]) || [];
+  const inlineExt = /^(pdf|png|jpe?g|txt)$/;
+  function renderFiles() {
+    const s = songById(curId); if (!s) return;
+    const list = filesOf(s.id);
+    $('#d-flist').innerHTML = list.length ? list.map((f) => `
+      <li><span class="ficon">${esc(f.ext.toUpperCase())}</span>
+        <span class="versions__info"><a class="label link" href="${esc(audioSrc(f.id, !inlineExt.test(f.ext)))}" ${inlineExt.test(f.ext) ? 'target="_blank" rel="noopener"' : ''}>${esc(f.name)}</a>
+        <span class="meta">${esc(fmt(f.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))} · ${esc(f.by)} · ${fmtSize(f.size)}</span></span>
+        <span class="versions__tools"><a class="link meta" href="${esc(audioSrc(f.id, true))}" title="Herunterladen">↓</a>${f.by === S.me.name || S.me.admin ? `<button class="link meta" data-del-file="${f.id}" title="Datei löschen">✕</button>` : ''}</span>
+      </li>`).join('') : '<li class="leer">Noch keine Dateien. Tabs, Noten oder MIDI hier ablegen.</li>';
+  }
+  function uploadFile(file) {
+    const s = songById(curId); if (!s || !file) return;
+    if (!/\.(gp|gp3|gp4|gp5|gpx|mscz|midi?|pdf|txt|png|jpe?g)$/i.test(file.name)) { toast('Erlaubt: Guitar Pro, MuseScore, MIDI, PDF, TXT, Bilder'); return; }
+    if (S.maxUpload && file.size > S.maxUpload) { toast(`Zu groß: max. ${fmtSize(S.maxUpload)}`); return; }
+    const bar = $('#d-fupbar'), fd = new FormData(); fd.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', CFG.rest + `songs/${s.id}/files`); xhr.setRequestHeader('X-WP-Nonce', CFG.nonce);
+    busy++; bar.hidden = false; $('i', bar).style.width = '0%';
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) $('i', bar).style.width = Math.round((e.loaded / e.total) * 100) + '%'; };
+    xhr.onload = () => {
+      busy--; bar.hidden = true; $('#d-ffile').value = '';
+      let json = {}; try { json = JSON.parse(xhr.responseText); } catch (err) {}
+      if (xhr.status >= 200 && xhr.status < 300) { S.files[s.id] = json.files || []; localLog(`Datei zu ${s.title}: ${file.name}`); renderFiles(); renderHome(); toast('Datei hochgeladen ✓'); }
+      else toast(json.message || 'Upload fehlgeschlagen');
+    };
+    xhr.onerror = () => { busy--; bar.hidden = true; toast('Keine Verbindung, bitte erneut versuchen'); };
+    xhr.send(fd);
+  }
+  $('#d-ffile').addEventListener('change', (e) => uploadFile(e.target.files[0]));
+  const fdrop = $('#d-fdrop');
+  ['dragenter', 'dragover'].forEach((t) => fdrop.addEventListener(t, (e) => { e.preventDefault(); fdrop.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach((t) => fdrop.addEventListener(t, (e) => { e.preventDefault(); fdrop.classList.remove('is-over'); }));
+  fdrop.addEventListener('drop', (e) => uploadFile(e.dataTransfer.files[0]));
+  $('#d-flist').addEventListener('click', async (e) => {
+    const d = e.target.closest('[data-del-file]'); if (!d) return;
+    if (!confirm('Diese Datei endgültig löschen?')) return;
+    try { const r = await api('audio/' + d.dataset.delFile, { method: 'DELETE' }); S.files[curId] = r.files || []; renderFiles(); toast('Datei gelöscht'); }
+    catch (err) { toast(err.message); }
+  });
+
+  /* ================= RELEASE-CHECKLISTE ================= */
+  function renderRelease(inputsToo) {
+    const s = songById(curId); if (!s) return;
+    const box = $('#d-release'), on = showRelease(s), was = !box.hidden;
+    box.hidden = !on;
+    $('#d-rel-n').textContent = `${relCount(s)}/${relItems().length}`;
+    if (!on || (!inputsToo && was)) return;
+    const r = relOf(s);
+    $('#d-rel-list').innerHTML = relItems().map((it) => it.t === 'check'
+      ? `<li><label class="check"><input type="checkbox" data-rel="${esc(it.k)}" ${r[it.k] ? 'checked' : ''}><span>${esc(it.l)}</span></label></li>`
+      : `<li><label class="feld"><span class="meta">${esc(it.l)}</span><input data-rel="${esc(it.k)}" type="${it.t === 'date' ? 'date' : 'text'}" value="${esc(r[it.k] || '')}" placeholder="${esc(it.ph || '')}"></label></li>`).join('');
+  }
+
   /* ================= SONG-DETAIL ================= */
   const drawer = $('#drawer');
   function openDrawer(id) {
@@ -596,7 +808,7 @@
       return `${head}<li><span class="label">${esc(st.l)}</span><span class="wer">${(st.who || []).map((w) => av(w)).join('') || '<span class="meta">wer?</span>'}</span>
         <select data-step="${esc(st.k)}" aria-label="Status ${esc(st.l)}">${opts}</select></li>`;
     }).join('');
-    renderVersions();
+    renderVersions(); renderFiles(); renderRelease(inputsToo);
     if (inputsToo) {
       $$('[data-meta]', drawer).forEach((i) => { i.value = s.meta[i.dataset.meta] || ''; });
       $$('[data-flag]', drawer).forEach((i) => { i.checked = !!s.flags[i.dataset.flag]; });
@@ -631,14 +843,15 @@
       meta: Object.fromEntries($$('[data-meta]', drawer).map((i) => [i.dataset.meta, i.value])),
       flags: Object.fromEntries($$('[data-flag]', drawer).map((i) => [i.dataset.flag, i.checked])),
     };
+    if (!$('#d-release').hidden) body.meta.rel = Object.fromEntries($$('[data-rel]', drawer).map((i) => [i.dataset.rel, i.type === 'checkbox' ? i.checked : i.value]));
     try { replaceSong(await api('songs/' + s.id, { method: 'POST', body })); $('#d-saved').textContent = 'Gespeichert ✓'; fillDrawer(false); renderStudio(); renderHome(); }
     catch (err) { $('#d-saved').textContent = err.message; }
   }
   drawer.addEventListener('input', (e) => {
-    if (e.target.matches('[data-meta], #d-f-title, #d-f-nr')) queueSave(false);
+    if (e.target.matches('[data-meta], #d-f-title, #d-f-nr, [data-rel]:not([type=checkbox])')) queueSave(false);
   });
   drawer.addEventListener('change', (e) => {
-    if (e.target.matches('[data-flag], #d-f-album, #d-f-released')) queueSave(true);
+    if (e.target.matches('[data-flag], #d-f-album, #d-f-released, [data-rel]')) queueSave(true);
   });
   $('#d-delete').addEventListener('click', async () => {
     const s = songById(curId); if (!s) return;
@@ -656,6 +869,7 @@
       $('#pf-about').dataset.filled = '1';
     }
     $('#pf-login').value = me.login;
+    $('#pf-n-versions').checked = me.notify !== false;
     $('#pf-band').innerHTML = S.members.map((m) => `<li class="${m.id === me.id ? 'is-me' : ''}">${av(m.name)}<span><span class="label">${esc(m.name)}</span><span class="meta">${esc(m.role || '–')}</span></span></li>`).join('');
     $('#pf-meta').textContent = `Benutzername: ${me.login} · ${me.admin ? 'Admin' : 'Bandmitglied'}`;
   }
@@ -669,6 +883,11 @@
     S.me = await api('profile', { method: 'POST', body: { first: $('#pf-first').value.trim(), last: $('#pf-last').value.trim(), role: $('#pf-role').value.trim() } });
     await load(); renderProfile(true); toast('Gespeichert');
   }); });
+  $('#pf-n-versions').addEventListener('change', async (e) => {
+    try { S.me = await api('profile/notify', { method: 'POST', body: { versions: e.target.checked } }); toast(e.target.checked ? 'Du bekommst Mails zu neuen Versionen' : 'Keine Mails mehr zu neuen Versionen'); }
+    catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
+  });
+  $('#pf-notify').addEventListener('submit', (e) => e.preventDefault());
   $('#pf-email').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
     S.me = await api('profile/email', { method: 'POST', body: { email: $('#pf-mail').value.trim(), password: $('#pf-mail-pass').value } });
     $('#pf-mail-pass').value = ''; renderProfile(true); toast('E-Mail geändert');
@@ -694,14 +913,15 @@
     S = fresh;
     if (Array.isArray(S.attendance)) S.attendance = {};
     if (!S.audio || Array.isArray(S.audio)) S.audio = {};
-    S.songs.forEach((s) => { if (Array.isArray(s.st)) s.st = {}; if (Array.isArray(s.meta)) s.meta = {}; if (Array.isArray(s.flags)) s.flags = {}; });
+    if (!S.files || Array.isArray(S.files)) S.files = {};
+    S.songs = S.songs.map(normSong);
     buildInitials();
     renderAll();
   }
 
   // Neu laden, damit Änderungen der anderen auftauchen (nicht während gespeichert oder getippt wird).
   setInterval(() => {
-    if (document.hidden || busy || saveTimer && $('#d-saved').textContent.startsWith('Ungespeichert')) return;
+    if (document.hidden || busy || drag || saveTimer && $('#d-saved').textContent.startsWith('Ungespeichert')) return;
     const a = document.activeElement;
     if (a && a.matches('input, textarea, select') && !a.closest('.zusage')) return;
     load().catch(() => {});
@@ -716,6 +936,12 @@
       let view = (location.hash || '').slice(1);
       if (!['home', 'kalender', 'studio', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
       show(view);
+      // Link aus der Mail: /portal/?song=7#studio → Song direkt öffnen
+      const sid = +new URLSearchParams(location.search).get('song');
+      if (sid && songById(sid)) {
+        setStudioView('matrix'); show('studio'); openDrawer(sid);
+        if (history.replaceState) history.replaceState(null, '', location.pathname + '#studio');
+      }
     } catch (err) {
       $('#loading').textContent = 'Konnte Daten nicht laden: ' + err.message;
     }

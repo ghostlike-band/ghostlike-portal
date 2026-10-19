@@ -62,6 +62,35 @@ function glp_step_label( $type, $value ) {
 	return $value === -1 ? 'nicht nötig' : ( $labels[ $type ][ $value ] ?? 'offen' );
 }
 
+/** Release-Checkliste für fertige Songs. t: check | text | date */
+function glp_release_items() {
+	return array(
+		array( 'k' => 'master', 'l' => 'Master final abgenommen', 't' => 'check' ),
+		array( 'k' => 'cover', 'l' => 'Cover-Artwork fertig', 't' => 'check' ),
+		array( 'k' => 'credits', 'l' => 'Credits & Songwriter erfasst', 't' => 'check' ),
+		array( 'k' => 'gema', 'l' => 'Bei der GEMA angemeldet', 't' => 'check' ),
+		array( 'k' => 'isrc', 'l' => 'ISRC-Code', 't' => 'text', 'ph' => 'z. B. DE-A12-26-00001' ),
+		array( 'k' => 'lyrics', 'l' => 'Lyrics bei Musixmatch hinterlegt', 't' => 'check' ),
+		array( 'k' => 'dist', 'l' => 'Beim Vertrieb hochgeladen', 't' => 'check' ),
+		array( 'k' => 'pitch', 'l' => 'Spotify-Pitch abgeschickt (min. 7 Tage vorher)', 't' => 'check' ),
+		array( 'k' => 'date', 'l' => 'Release-Datum', 't' => 'date' ),
+	);
+}
+
+/** Geplante Schritte einer Session säubern: [{s: Song-ID, k: Schritt}] */
+function glp_clean_plan( $plan ) {
+	$keys = array_column( glp_steps(), 'k' );
+	$out  = array();
+	foreach ( (array) $plan as $p ) {
+		$sid = (int) ( $p['s'] ?? 0 );
+		$k   = sanitize_key( (string) ( $p['k'] ?? '' ) );
+		if ( $sid && in_array( $k, $keys, true ) && glp_song( $sid ) ) {
+			$out[ $sid . '|' . $k ] = array( 's' => $sid, 'k' => $k );
+		}
+	}
+	return array_slice( array_values( $out ), 0, 80 );
+}
+
 /* ================= MITGLIEDER ================= */
 
 function glp_members() {
@@ -186,6 +215,7 @@ function glp_events( $weeks = 10, $from = null ) {
 			'cancelled' => false,
 			'who'       => json_decode( (string) $r->who, true ) ?: array(),
 			'note'      => (string) $r->note,
+			'plan'      => json_decode( (string) $r->plan, true ) ?: array(),
 		);
 	}
 	usort( $out, fn( $a, $b ) => strcmp( $a['start'], $b['start'] ) );

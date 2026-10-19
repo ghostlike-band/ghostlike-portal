@@ -147,6 +147,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<label class="feld"><span class="meta">Uhrzeit</span><input type="time" name="time" id="ev-time" value="19:00"></label>
 				<label class="feld feld--breit"><span class="meta">Ort</span><input name="place" id="ev-place" placeholder="z. B. bei Valentin"></label>
 				<fieldset class="feld feld--breit"><legend class="meta">Wer ist dabei?</legend><div class="who-pick" id="ev-who"></div></fieldset>
+				<fieldset class="feld feld--breit" id="ev-plan-box"><legend class="meta">Was wird aufgenommen? (optional)</legend><div class="plan-pick" id="ev-plan"></div></fieldset>
 				<div class="feld--breit actions"><button class="btn btn--patina" type="submit">Termin speichern</button><button class="btn" type="button" id="event-cancel">Abbrechen</button></div>
 			</form>
 			<div class="filter" id="cal-filter">
@@ -206,9 +207,10 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<span><i class="cell-dot s1"></i>aufgenommen</span>
 				<span><i class="cell-dot s2"></i>editiert / fertig</span>
 				<span><i class="cell-dot sna"></i>nicht nötig</span>
-				<span class="legend__hint">Klick auf ein Feld = nächster Status · Klick auf Song = Details</span>
+				<span class="legend__hint">Klick auf ein Feld = nächster Status · Klick auf Song = Details · ⋮⋮ ziehen = Reihenfolge</span>
 			</div>
 			<div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+			<div class="cards" id="cards"></div>
 			<form class="add-song" id="add-song">
 				<input id="new-song" placeholder="Neuer Song (Arbeitstitel)" maxlength="190" aria-label="Neuer Song">
 				<button class="btn btn--klein" type="submit">+ Song anlegen</button>
@@ -255,6 +257,12 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<label class="feld"><span class="meta">Neues Passwort (mind. 10 Zeichen)</span><input id="pf-new" type="password" minlength="10" required autocomplete="new-password"></label>
 					<label class="feld"><span class="meta">Neues Passwort wiederholen</span><input id="pf-new2" type="password" minlength="10" required autocomplete="new-password"></label>
 					<button class="btn" type="submit">Passwort ändern</button>
+				</form>
+
+				<form class="card profil__card" id="pf-notify">
+					<span class="meta">Benachrichtigungen</span>
+					<label class="check"><input type="checkbox" id="pf-n-versions"><span>Mail, wenn jemand eine neue Version hochlädt</span></label>
+					<p class="klein">Die Mail kommt mit Link direkt zum Song. Deine eigenen Uploads lösen keine Mail an dich aus.</p>
 				</form>
 
 				<article class="card profil__card">
@@ -316,8 +324,22 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<div class="bar" id="d-upbar" hidden><i></i></div>
 			</form>
 		</section>
+		<section class="versions files" id="d-files">
+			<div class="versions__head"><span class="meta">Tabs, Noten &amp; Dateien</span><span class="meta">Guitar Pro · MuseScore · MIDI · PDF</span></div>
+			<ol class="versions__list" id="d-flist"></ol>
+			<label class="versions__drop versions__drop--klein" id="d-fdrop">
+				<input type="file" id="d-ffile" accept=".gp,.gp3,.gp4,.gp5,.gpx,.mscz,.mid,.midi,.pdf,.txt,.png,.jpg,.jpeg" hidden>
+				<span class="label">＋ Datei hinzufügen</span>
+			</label>
+			<div class="bar" id="d-fupbar" hidden><i></i></div>
+		</section>
+		<section class="release" id="d-release" hidden>
+			<div class="versions__head"><span class="meta">Release-Checkliste</span><b class="meta" id="d-rel-n"></b></div>
+			<ul class="release__list" id="d-rel-list"></ul>
+		</section>
 		<ol class="steps" id="d-steps"></ol>
 		<label class="feld"><span class="meta">Notizen / Was fehlt noch?</span><textarea data-meta="note" id="d-m-note" rows="3"></textarea></label>
+		<label class="feld"><span class="meta">Lyrics</span><textarea data-meta="lyrics" id="d-m-lyrics" rows="8" class="lyrics" placeholder="Strophe 1 …"></textarea></label>
 		<div class="drawer__foot"><span class="meta" id="d-saved"></span><button class="btn btn--klein btn--gefahr" id="d-delete">Song löschen</button></div>
 	</aside>
 </div>

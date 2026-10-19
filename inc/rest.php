@@ -18,17 +18,20 @@ add_action( 'rest_api_init', function () {
 
 	$r( '/state', 'GET', 'glp_rest_state' );
 	$r( '/songs', 'POST', 'glp_rest_song_create' );
+	$r( '/songs/order', 'POST', 'glp_rest_song_order' );
 	$r( '/songs/(?P<id>\d+)', 'POST', 'glp_rest_song_update' );
 	$r( '/songs/(?P<id>\d+)', 'DELETE', 'glp_rest_song_delete' );
 	$r( '/songs/(?P<id>\d+)/step', 'POST', 'glp_rest_song_step' );
 	$r( '/events', 'POST', 'glp_rest_event_create' );
 	$r( '/events/(?P<id>\d+)', 'DELETE', 'glp_rest_event_delete' );
+	$r( '/events/(?P<id>\d+)/plan', 'POST', 'glp_rest_event_plan' );
 	$r( '/attendance', 'POST', 'glp_rest_attendance' );
 	$r( '/probe-off', 'POST', 'glp_rest_probe_off' );
 	$r( '/ical-reset', 'POST', 'glp_rest_ical_reset' );
 	$r( '/profile', 'POST', 'glp_rest_profile' );
 	$r( '/profile/email', 'POST', 'glp_rest_profile_email' );
 	$r( '/profile/password', 'POST', 'glp_rest_profile_password' );
+	$r( '/profile/notify', 'POST', 'glp_rest_profile_notify' );
 	// Kalender-Abo: ohne Login, geschützt über den persönlichen Schlüssel.
 	$r( '/ical/(?P<user>\d+)/(?P<token>[A-Za-z0-9]{32})', 'GET', 'glp_rest_ical', '__return_true' );
 } );
@@ -57,6 +60,8 @@ function glp_rest_state() {
 		'ical'       => glp_ical_url( get_current_user_id() ),
 		'probe'      => glp_probe_settings(),
 		'audio'      => (object) glp_audio_by_song(),
+		'files'      => (object) glp_files_by_song(),
+		'release'    => glp_release_items(),
 		'audioUrl'   => glp_audio_url( 0 ),
 		'maxUpload'  => wp_max_upload_size(),
 	) );
@@ -110,11 +115,36 @@ function glp_rest_song_update( WP_REST_Request $req ) {
 	}
 	if ( is_array( $req->get_param( 'meta' ) ) ) {
 		$meta = (array) $song['meta'];
-		foreach ( array( 'bpm', 'key', 'tuning', 'link', 'note' ) as $k ) {
+		foreach ( array( 'bpm', 'key', 'tuning', 'link', 'note', 'lyrics' ) as $k ) {
 			$v = $req->get_param( 'meta' )[ $k ] ?? null;
-			if ( $v !== null ) {
-				$meta[ $k ] = $k === 'link' ? esc_url_raw( $v ) : ( $k === 'note' ? sanitize_textarea_field( $v ) : sanitize_text_field( $v ) );
+			if ( $v !== null && is_scalar( $v ) ) {
+				if ( $k === 'link' ) {
+					$meta[ $k ] = esc_url_raw( $v );
+				} elseif ( $k === 'note' || $k === 'lyrics' ) {
+					$meta[ $k ] = mb_substr( sanitize_textarea_field( $v ), 0, 20000 );
+				} else {
+					$meta[ $k ] = sanitize_text_field( $v );
+				}
 			}
+		}
+		// Release-Checkliste
+		$rel_in = $req->get_param( 'meta' )['rel'] ?? null;
+		if ( is_array( $rel_in ) ) {
+			$rel = (array) ( $meta['rel'] ?? array() );
+			foreach ( glp_release_items() as $it ) {
+				if ( ! array_key_exists( $it['k'], $rel_in ) ) {
+					continue;
+				}
+				$v = $rel_in[ $it['k'] ];
+				if ( $it['t'] === 'check' ) {
+					$rel[ $it['k'] ] = (bool) $v;
+				} elseif ( $it['t'] === 'date' ) {
+					$rel[ $it['k'] ] = preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $v ) ? (string) $v : '';
+				} else {
+					$rel[ $it['k'] ] = mb_substr( sanitize_text_field( (string) $v ), 0, 60 );
+				}
+			}
+			$meta['rel'] = (object) $rel;
 		}
 		$data['meta'] = wp_json_encode( (object) $meta );
 	}
@@ -148,6 +178,23 @@ function glp_rest_song_delete( WP_REST_Request $req ) {
 	$wpdb->delete( glp_table( 'songs' ), array( 'id' => $song['id'] ) );
 	glp_log( 'Song gelöscht: ' . $song['title'] );
 	return glp_ok( array( 'deleted' => true ) );
+}
+
+/** Tracklist neu sortieren: ids = Album-Songs in neuer Reihenfolge → Track-Nr. 1, 2, 3 … */
+function glp_rest_song_order( WP_REST_Request $req ) {
+	global $wpdb;
+	$ids = array_values( array_unique( array_filter( array_map( 'intval', (array) $req->get_param( 'ids' ) ) ) ) );
+	if ( ! $ids ) {
+		return glp_err( 'Keine Reihenfolge übergeben.' );
+	}
+	$album = array_map( 'intval', $wpdb->get_col( 'SELECT id FROM ' . glp_table( 'songs' ) . ' WHERE album = 1 ORDER BY nr ASC, id ASC' ) );
+	// Unbekannte raus, fehlende Album-Songs hinten anhängen
+	$ids = array_merge( array_values( array_intersect( $ids, $album ) ), array_values( array_diff( $album, $ids ) ) );
+	foreach ( $ids as $i => $id ) {
+		$wpdb->update( glp_table( 'songs' ), array( 'nr' => $i + 1 ), array( 'id' => $id ) );
+	}
+	glp_log( 'Tracklist neu sortiert' );
+	return glp_ok( array( 'songs' => glp_songs() ) );
 }
 
 function glp_rest_song_step( WP_REST_Request $req ) {
@@ -212,6 +259,7 @@ function glp_rest_event_create( WP_REST_Request $req ) {
 		'starts_at'  => $date . ' ' . $time . ':00',
 		'who'        => wp_json_encode( $who ),
 		'note'       => sanitize_textarea_field( (string) $req->get_param( 'note' ) ),
+		'plan'       => wp_json_encode( glp_clean_plan( $req->get_param( 'plan' ) ) ),
 		'created_by' => get_current_user_id(),
 	) );
 	$id = (int) $wpdb->insert_id; // vor dem Log-Eintrag merken
@@ -232,6 +280,18 @@ function glp_rest_event_delete( WP_REST_Request $req ) {
 	$wpdb->delete( glp_table( 'attendance' ), array( 'event_key' => 'ev-' . $row->id ) );
 	glp_log( 'Termin gelöscht: ' . $row->title );
 	return glp_ok( array( 'deleted' => true ) );
+}
+
+function glp_rest_event_plan( WP_REST_Request $req ) {
+	global $wpdb;
+	$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . glp_table( 'events' ) . ' WHERE id = %d', (int) $req['id'] ) );
+	if ( ! $row ) {
+		return glp_err( 'Termin nicht gefunden.', 404 );
+	}
+	$plan = glp_clean_plan( $req->get_param( 'plan' ) );
+	$wpdb->update( glp_table( 'events' ), array( 'plan' => wp_json_encode( $plan ) ), array( 'id' => $row->id ) );
+	glp_log( 'Plan für ' . $row->title . ' geändert (' . count( $plan ) . ' Schritte)' );
+	return glp_ok( array( 'plan' => $plan ) );
 }
 
 function glp_rest_attendance( WP_REST_Request $req ) {
@@ -301,7 +361,9 @@ function glp_rest_ical( WP_REST_Request $req ) {
 	// Zu- und Absagen für die Beschreibung
 	$att     = (array) glp_attendance( array_column( $events, 'key' ) );
 	$members = glp_members();
-	$describe = function ( $e ) use ( $att, $members, $uid ) {
+	$step_l   = array_column( glp_steps(), 'l', 'k' );
+	$song_t   = array_column( glp_songs(), 'title', 'id' );
+	$describe = function ( $e ) use ( $att, $members, $uid, $step_l, $song_t ) {
 		$a     = (array) ( $att[ $e['key'] ] ?? array() );
 		$ja    = array();
 		$nein  = array();
@@ -322,6 +384,11 @@ function glp_rest_ical( WP_REST_Request $req ) {
 		}
 		if ( ! empty( $e['who'] ) ) {
 			$lines[] = 'Eingeplant: ' . implode( ', ', $e['who'] );
+		}
+		if ( ! empty( $e['plan'] ) ) {
+			$lines[] = 'Geplant: ' . implode( ', ', array_map( function ( $p ) use ( $step_l, $song_t ) {
+				return ( $step_l[ $p['k'] ] ?? $p['k'] ) . ' · ' . ( $song_t[ $p['s'] ] ?? '?' );
+			}, $e['plan'] ) );
 		}
 		$lines[] = 'Dabei: ' . ( $ja ? implode( ', ', $ja ) : '–' );
 		$lines[] = 'Nicht dabei: ' . ( $nein ? implode( ', ', $nein ) : '–' );
@@ -399,7 +466,13 @@ function glp_me() {
 		'email'    => (string) $u->user_email,
 		'login'    => (string) $u->user_login,
 		'admin'    => current_user_can( 'manage_options' ),
+		'notify'   => glp_wants_version_mail( $u->ID ),
 	);
+}
+
+function glp_rest_profile_notify( WP_REST_Request $req ) {
+	update_user_meta( get_current_user_id(), 'glp_notify_versions', $req->get_param( 'versions' ) ? '1' : '0' );
+	return glp_ok( glp_me() );
 }
 
 function glp_rest_profile( WP_REST_Request $req ) {

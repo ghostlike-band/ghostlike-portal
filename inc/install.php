@@ -52,6 +52,7 @@ function glp_install() {
 		starts_at datetime NOT NULL,
 		who longtext NULL,
 		note text NULL,
+		plan longtext NULL,
 		created_by bigint(20) unsigned NOT NULL DEFAULT 0,
 		PRIMARY KEY  (id),
 		KEY starts_at (starts_at)
@@ -70,6 +71,7 @@ function glp_install() {
 		song_id bigint(20) unsigned NOT NULL,
 		file varchar(190) NOT NULL DEFAULT '',
 		name varchar(190) NOT NULL DEFAULT '',
+		kind varchar(10) NOT NULL DEFAULT 'audio',
 		mime varchar(60) NOT NULL DEFAULT 'audio/mpeg',
 		size bigint(20) unsigned NOT NULL DEFAULT 0,
 		note varchar(190) NOT NULL DEFAULT '',
