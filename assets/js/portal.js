@@ -32,23 +32,26 @@
   }
 
   /* ================= RECHNEN ================= */
+  // Werte: 0 offen · 3 in Arbeit · 1 aufgenommen (rec) bzw. in Arbeit (post) · 2 editiert/fertig · -1 nicht nötig
   const TYPES = {
-    done: { cycle: [0, 2, -1], label: { 0: 'offen', 2: 'fertig' } },
-    rec: { cycle: [0, 1, 2, -1], label: { 0: 'offen', 1: 'aufgenommen', 2: 'editiert' } },
-    post: { cycle: [0, 1, 2, -1], label: { 0: 'offen', 1: 'in Arbeit', 2: 'fertig' } },
+    done: { cycle: [0, 3, 2, -1], label: { 0: 'offen', 3: 'in Arbeit', 2: 'fertig' }, val: { 3: 0.5, 2: 1 } },
+    rec: { cycle: [0, 3, 1, 2, -1], label: { 0: 'offen', 3: 'in Arbeit', 1: 'aufgenommen', 2: 'editiert' }, val: { 3: 0.25, 1: 0.5, 2: 1 } },
+    post: { cycle: [0, 1, 2, -1], label: { 0: 'offen', 1: 'in Arbeit', 2: 'fertig' }, val: { 1: 0.5, 2: 1 } },
   };
+  const isWip = (st, v) => v === 3 || (st.t === 'post' && v === 1);   // „in Arbeit“ (Welle)
+  const isOpen = (v) => v === 0 || v === 1 || v === 3;              // noch nicht erledigt
   const label = (step, v) => (v === -1 ? 'nicht nötig' : TYPES[step.t].label[v] ?? 'offen');
   const stateOf = (song, step) => { const v = song.st[step.k]; return typeof v === 'number' ? v : 0; };
   const nextOf = (step, v) => { const c = TYPES[step.t].cycle; return c[(c.indexOf(v) + 1) % c.length]; };
-  const val = (v) => (v === 2 ? 1 : v === 1 ? 0.5 : 0);
+  const val = (st, v) => TYPES[st.t].val[v] || 0;
   function pct(song) {
     let w = 0, got = 0;
-    S.steps.forEach((s) => { const v = stateOf(song, s); if (v === -1) return; w += +s.w; got += +s.w * val(v); });
+    S.steps.forEach((s) => { const v = stateOf(song, s); if (v === -1) return; w += +s.w; got += +s.w * val(s, v); });
     return w ? Math.round((got / w) * 100) : 100;
   }
   const album = () => S.songs.filter((s) => s.album);
   const avg = (list) => (list.length ? Math.round(list.reduce((a, s) => a + pct(s), 0) / list.length) : 0);
-  const openSteps = (list) => list.reduce((n, s) => n + S.steps.filter((st) => [0, 1].includes(stateOf(s, st))).length, 0);
+  const openSteps = (list) => list.reduce((n, s) => n + S.steps.filter((st) => isOpen(stateOf(s, st))).length, 0);
   const isMine = (step, name) => (step.who || []).some((w) => w.toLowerCase() === String(name).toLowerCase());
 
   /* ================= HILFEN ================= */
@@ -121,7 +124,7 @@
     const out = [];
     album().forEach((s) => S.steps.forEach((st) => {
       const v = stateOf(s, st);
-      if ((v === 0 || v === 1) && isMine(st, S.me.name)) out.push({ s, st, v, p: pct(s) });
+      if (isOpen(v) && isMine(st, S.me.name)) out.push({ s, st, v, p: pct(s) });
     }));
     return out.sort((a, b) => b.p - a.p || b.v - a.v); // fast fertige Songs zuerst – motiviert
   }
@@ -274,7 +277,7 @@
     const row = (s) => {
       const p = pct(s); let l = '';
       const cells = ordered.map((st) => {
-        const v = stateOf(s, st), cls = v === -1 ? 'sna' : 's' + v;
+        const v = stateOf(s, st), cls = v === -1 ? 'sna' : isWip(st, v) ? 'sw' : 's' + v;
         const mine = focus && isMine(st, focus) ? 'is-mine' : '';
         const html = `<td class="${st.g !== l ? 'grp-start' : ''}"><button class="cell ${cls} ${mine}" data-cell="${s.id}|${esc(st.k)}" title="${esc(st.l)} — ${label(st, v)}${st.who && st.who.length ? ' · ' + esc(st.who.join(' / ')) : ''}"><i></i></button></td>`;
         l = st.g; return html;
@@ -362,16 +365,24 @@
 
   // Welche Aktionen für einen offenen Schritt sinnvoll sind
   function todoActions(st, v) {
-    if (st.t === 'done') return [[2, '✓ Fertig']];
-    if (st.t === 'rec') return v === 0 ? [[1, '✓ Aufgenommen'], [2, '✓ Editiert']] : [[2, '✓ Editiert']];
-    return v === 0 ? [[1, 'In Arbeit'], [2, '✓ Fertig']] : [[2, '✓ Fertig']];
+    if (st.t === 'done') return v === 0 ? [[3, '〰 In Arbeit'], [2, '✓ Fertig']] : [[2, '✓ Fertig']];
+    if (st.t === 'rec') {
+      if (v === 0) return [[3, '〰 In Arbeit'], [1, '✓ Aufgenommen']];
+      if (v === 3) return [[1, '✓ Aufgenommen'], [2, '✓ Editiert']];
+      return [[2, '✓ Editiert']];
+    }
+    return v === 0 ? [[1, '〰 In Arbeit'], [2, '✓ Fertig']] : [[2, '✓ Fertig']];
   }
-  const todoState = (st, v) => (v === 1 ? (st.t === 'rec' ? 'aufgenommen · Edit fehlt' : 'in Arbeit') : (st.t === 'rec' ? 'noch aufnehmen' : 'offen'));
+  const todoState = (st, v) => {
+    if (isWip(st, v)) return 'in Arbeit';
+    if (v === 1) return 'aufgenommen · Edit fehlt';
+    return st.t === 'rec' ? 'noch aufnehmen' : 'offen';
+  };
 
   function renderTodos() {
     const who = todoWho || S.me.name;
     // Zähler am Reiter: meine offenen Schritte
-    const mine = album().reduce((n, s) => n + S.steps.filter((st) => isMine(st, S.me.name) && [0, 1].includes(stateOf(s, st))).length, 0);
+    const mine = album().reduce((n, s) => n + S.steps.filter((st) => isMine(st, S.me.name) && isOpen(stateOf(s, st))).length, 0);
     $('#todo-n').textContent = mine ? mine : '';
 
     $('#todo-who').innerHTML = '<span class="meta">Für:</span>' + S.members.map((m) =>
@@ -385,17 +396,19 @@
     }
 
     // Persönlicher Fortschritt (gewichtet wie im Studio)
-    let w = 0, got = 0, open0 = 0, open1 = 0;
+    let w = 0, got = 0, open0 = 0, wip = 0, edit = 0;
     const songs = [];
     album().forEach((s) => {
       const items = [];
       assigned.forEach((st) => {
         const v = stateOf(s, st);
         if (v === -1) return;
-        w += +st.w; got += +st.w * val(v);
+        w += +st.w; got += +st.w * val(st, v);
+        const isEdit = st.t === 'rec' && v === 1;
         if (v === 0) open0++;
-        if (v === 1) open1++;
-        if ((v === 0 || v === 1) && (todoFilter === 'alle' || (todoFilter === 'rec' && v === 0) || (todoFilter === 'edit' && v === 1))) items.push({ st, v });
+        if (isWip(st, v)) wip++;
+        if (isEdit) edit++;
+        if (isOpen(v) && (todoFilter === 'alle' || (todoFilter === 'rec' && v === 0) || (todoFilter === 'wip' && isWip(st, v)) || (todoFilter === 'edit' && isEdit))) items.push({ st, v });
       });
       if (items.length) songs.push({ s, items, p: pct(s) });
     });
@@ -404,8 +417,9 @@
 
     $('#todo-sum').innerHTML = `
       <div class="todo-sum__big"><span class="meta">${who === S.me.name ? 'Dein' : esc(who) + 's'} Anteil am Album</span><b>${mp}%</b><div class="bar"><i style="width:${mp}%"></i></div></div>
-      <div class="kpi"><span class="meta">Noch aufnehmen</span><b>${open0}</b></div>
-      <div class="kpi"><span class="meta">Edit / in Arbeit</span><b>${open1}</b></div>
+      <div class="kpi"><span class="meta">Noch offen</span><b>${open0}</b></div>
+      <div class="kpi"><span class="meta">In Arbeit</span><b>${wip}</b></div>
+      <div class="kpi"><span class="meta">Edit fehlt</span><b>${edit}</b></div>
       <div class="kpi"><span class="meta">Songs betroffen</span><b>${songs.length}</b></div>`;
 
     $('#todo-songs').innerHTML = songs.length ? songs.map(({ s, items, p }) => `
@@ -418,7 +432,7 @@
         </header>
         <ul class="todo-song__list">
           ${items.map(({ st, v }) => `
-            <li class="${v === 1 ? 'is-halb' : ''}">
+            <li class="${isWip(st, v) ? 'is-wip' : v === 1 ? 'is-halb' : ''}">
               <span><span class="label">${esc(st.l)}</span><span class="meta">${todoState(st, v)}</span></span>
               <span class="todo-song__btns">
                 ${todoActions(st, v).map(([nv, l], i) => `<button class="btn btn--klein ${i === 0 ? 'btn--patina' : ''}" data-todo-set="${s.id}|${esc(st.k)}|${nv}">${l}</button>`).join('')}

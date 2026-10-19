@@ -353,3 +353,10 @@ body.has-player .drawer__panel { padding-bottom: 110px; }
 .sep__toggle { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
 .sep__toggle:hover .meta { color: var(--kalkweiss); }
 tr.sep--done td { border-top: 1px solid var(--linie-stark); }
+
+/* Status „in Arbeit“: Welle im Kästchen */
+.cell-dot.sw { border-color: var(--akzent); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M1 10.5 C 4 5.5 6 5.5 8.5 10.5 S 13 15.5 15.5 10.5 S 18.5 6.5 21 8' fill='none' stroke='%237C9A85' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / 80% no-repeat; }
+.cell.sw i { border-color: var(--akzent); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M1 10.5 C 4 5.5 6 5.5 8.5 10.5 S 13 15.5 15.5 10.5 S 18.5 6.5 21 8' fill='none' stroke='%237C9A85' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / 80% no-repeat; }
+.todo-song__list li.is-wip .label::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border: 1px solid var(--akzent); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M1 10.5 C 4 5.5 6 5.5 8.5 10.5 S 13 15.5 15.5 10.5 S 18.5 6.5 21 8' fill='none' stroke='%237C9A85' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E") center / 85% no-repeat; }
+.todo-sum { grid-template-columns: 2fr repeat(4, 1fr); }
+@media (max-width: 700px) { .todo-sum { grid-template-columns: 1fr 1fr; } }

@@ -11,9 +11,15 @@ function glp_groups() {
 	return array( 'pre' => 'Pre-Production', 'rec' => 'Instrumente', 'voc' => 'Vocals', 'post' => 'Mix & Master' );
 }
 
-/** Statustypen: done = offen/fertig · rec = offen/aufgenommen/editiert · post = offen/in Arbeit/fertig */
+/**
+ * Statustypen und Werte:
+ *   done = offen (0) / in Arbeit (3) / fertig (2)
+ *   rec  = offen (0) / in Arbeit (3) / aufgenommen (1) / editiert (2)
+ *   post = offen (0) / in Arbeit (1) / fertig (2)
+ *   -1   = nicht nötig
+ */
 function glp_step_types() {
-	return array( 'done' => 'offen → fertig', 'rec' => 'offen → aufgenommen → editiert', 'post' => 'offen → in Arbeit → fertig' );
+	return array( 'done' => 'offen → in Arbeit → fertig', 'rec' => 'offen → in Arbeit → aufgenommen → editiert', 'post' => 'offen → in Arbeit → fertig' );
 }
 
 function glp_default_steps() {
@@ -41,7 +47,19 @@ function glp_steps() {
 }
 
 function glp_step_values( $type ) {
-	return $type === 'done' ? array( 0, 2, -1 ) : array( 0, 1, 2, -1 );
+	if ( $type === 'done' ) {
+		return array( 0, 3, 2, -1 );
+	}
+	return $type === 'rec' ? array( 0, 3, 1, 2, -1 ) : array( 0, 1, 2, -1 );
+}
+
+function glp_step_label( $type, $value ) {
+	$labels = array(
+		'done' => array( 0 => 'offen', 3 => 'in Arbeit', 2 => 'fertig' ),
+		'rec'  => array( 0 => 'offen', 3 => 'in Arbeit', 1 => 'aufgenommen', 2 => 'editiert' ),
+		'post' => array( 0 => 'offen', 1 => 'in Arbeit', 2 => 'fertig' ),
+	);
+	return $value === -1 ? 'nicht nötig' : ( $labels[ $type ][ $value ] ?? 'offen' );
 }
 
 /* ================= MITGLIEDER ================= */

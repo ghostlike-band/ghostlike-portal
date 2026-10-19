@@ -184,8 +184,7 @@ function glp_rest_song_step( WP_REST_Request $req ) {
 	}
 
 	$song   = glp_song( $id );
-	$labels = array( 'done' => array( 0 => 'offen', 2 => 'fertig' ), 'rec' => array( 0 => 'offen', 1 => 'aufgenommen', 2 => 'editiert' ), 'post' => array( 0 => 'offen', 1 => 'in Arbeit', 2 => 'fertig' ) );
-	$label  = $value === -1 ? 'nicht nötig' : $labels[ $step['t'] ][ $value ];
+	$label  = glp_step_label( $step['t'], $value );
 	glp_log( $step['l'] . ' · ' . $song['title'] . ' → ' . $label );
 	return glp_ok( $song );
 }

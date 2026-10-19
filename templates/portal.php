@@ -182,7 +182,8 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<div class="filter">
 						<span class="meta">Zeigen:</span>
 						<button class="chip is-on" data-todo-filter="alle">Alles offen</button>
-						<button class="chip" data-todo-filter="rec">Aufnehmen</button>
+						<button class="chip" data-todo-filter="rec">Noch offen</button>
+						<button class="chip" data-todo-filter="wip">In Arbeit</button>
 						<button class="chip" data-todo-filter="edit">Editieren</button>
 					</div>
 				</div>
@@ -201,7 +202,8 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			</div>
 			<div class="legend meta">
 				<span><i class="cell-dot s0"></i>offen</span>
-				<span><i class="cell-dot s1"></i>aufgenommen / in Arbeit</span>
+				<span><i class="cell-dot sw"></i>in Arbeit</span>
+				<span><i class="cell-dot s1"></i>aufgenommen</span>
 				<span><i class="cell-dot s2"></i>editiert / fertig</span>
 				<span><i class="cell-dot sna"></i>nicht nötig</span>
 				<span class="legend__hint">Klick auf ein Feld = nächster Status · Klick auf Song = Details</span>
@@ -219,7 +221,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				</article>
 				<article class="card">
 					<div class="card__row"><span class="meta">So wird gerechnet</span></div>
-					<p class="klein">Jeder Schritt hat ein Gewicht. <b>Aufgenommen</b> zählt halb, <b>editiert</b> ganz. Was ein Song nicht braucht, setzt ihr auf <b>nicht nötig</b>, dann fällt es aus der Rechnung.<?php if ( current_user_can( 'manage_options' ) ) : ?> Schritte, Gewichte und Zuständige: <a class="link" href="<?php echo esc_url( admin_url( 'options-general.php?page=ghostlike-portal' ) ); ?>">Einstellungen ↗</a><?php endif; ?></p>
+					<p class="klein">Jeder Schritt hat ein Gewicht. <b>In Arbeit</b> zählt ein Viertel (Pre-Production die Hälfte), <b>aufgenommen</b> halb, <b>editiert/fertig</b> ganz. Was ein Song nicht braucht, setzt ihr auf <b>nicht nötig</b>, dann fällt es aus der Rechnung.<?php if ( current_user_can( 'manage_options' ) ) : ?> Schritte, Gewichte und Zuständige: <a class="link" href="<?php echo esc_url( admin_url( 'options-general.php?page=ghostlike-portal' ) ); ?>">Einstellungen ↗</a><?php endif; ?></p>
 					<ol class="weights" id="weights"></ol>
 				</article>
 			</div>
