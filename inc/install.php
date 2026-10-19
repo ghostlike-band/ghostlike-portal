@@ -65,6 +65,21 @@ function glp_install() {
 		PRIMARY KEY  (event_key,user_id)
 	) $c;" );
 
+	dbDelta( "CREATE TABLE " . glp_table( 'audio' ) . " (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		song_id bigint(20) unsigned NOT NULL,
+		file varchar(190) NOT NULL DEFAULT '',
+		name varchar(190) NOT NULL DEFAULT '',
+		mime varchar(60) NOT NULL DEFAULT 'audio/mpeg',
+		size bigint(20) unsigned NOT NULL DEFAULT 0,
+		note varchar(190) NOT NULL DEFAULT '',
+		uploaded_by bigint(20) unsigned NOT NULL DEFAULT 0,
+		created_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		KEY song_id (song_id)
+	) $c;" );
+	glp_audio_dir(); // geschützten Ordner anlegen
+
 	// Rolle „Bandmitglied“: darf nur ins Portal und ins eigene Profil.
 	if ( ! get_role( 'gl_member' ) ) {
 		add_role( 'gl_member', 'Bandmitglied', array( 'read' => true, 'gl_portal' => true ) );

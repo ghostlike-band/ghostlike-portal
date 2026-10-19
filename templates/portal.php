@@ -300,10 +300,35 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<label><input type="checkbox" data-field="album" id="d-f-album"><span>Auf dem Album</span></label>
 			<label><input type="checkbox" data-field="released" id="d-f-released"><span>Schon veröffentlicht</span></label>
 		</div>
+		<section class="versions" id="d-versions">
+			<div class="versions__head"><span class="meta">Versionen</span><span class="meta" id="d-max"></span></div>
+			<ol class="versions__list" id="d-vlist"></ol>
+			<form class="versions__up" id="d-upload">
+				<label class="versions__drop" id="d-drop">
+					<input type="file" id="d-file" accept=".mp3,.m4a,.aac,.wav,audio/*" hidden>
+					<span class="label">＋ Neue Version hochladen</span>
+					<span class="meta">MP3 hierher ziehen oder antippen</span>
+				</label>
+				<input id="d-vnote" maxlength="120" placeholder="Notiz, z. B. Rough Mix, neue Vocals" aria-label="Notiz zur Version">
+				<div class="bar" id="d-upbar" hidden><i></i></div>
+			</form>
+		</section>
 		<ol class="steps" id="d-steps"></ol>
 		<label class="feld"><span class="meta">Notizen / Was fehlt noch?</span><textarea data-meta="note" id="d-m-note" rows="3"></textarea></label>
 		<div class="drawer__foot"><span class="meta" id="d-saved"></span><button class="btn btn--klein btn--gefahr" id="d-delete">Song löschen</button></div>
 	</aside>
+</div>
+
+<div class="player" id="player" hidden>
+	<button class="player__btn" id="pl-toggle" aria-label="Abspielen/Pause">▶</button>
+	<div class="player__info">
+		<span class="label" id="pl-title"></span>
+		<span class="meta" id="pl-sub"></span>
+		<input type="range" id="pl-seek" min="0" max="1000" value="0" aria-label="Position">
+	</div>
+	<span class="meta player__time" id="pl-time">0:00</span>
+	<button class="player__x" id="pl-close" aria-label="Player schließen">✕</button>
+	<audio id="pl-audio" preload="metadata"></audio>
 </div>
 
 <div class="toast meta meta--hell" id="toast" role="status"></div>

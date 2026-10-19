@@ -56,6 +56,9 @@ function glp_rest_state() {
 		'attendance' => glp_attendance( array_column( $events, 'key' ) ),
 		'ical'       => glp_ical_url( get_current_user_id() ),
 		'probe'      => glp_probe_settings(),
+		'audio'      => (object) glp_audio_by_song(),
+		'audioUrl'   => glp_audio_url( 0 ),
+		'maxUpload'  => wp_max_upload_size(),
 	) );
 }
 

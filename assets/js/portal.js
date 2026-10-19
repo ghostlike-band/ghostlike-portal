@@ -279,13 +279,13 @@
       }).join('');
       const tags = [s.released ? '<span class="tag">Released</span>' : '', s.flags.single ? '<span class="tag tag--patina">Single</span>' : '', s.flags.video ? '<span class="tag">Video</span>' : ''].join('');
       return `<tr class="${s.released ? 'is-released' : ''} ${!s.album ? 'is-pool' : ''}">
-        <td class="song-col"><button class="song-btn" data-song="${s.id}">
+        <td class="song-col"><div class="song-cell">${playBtn(s)}<button class="song-btn" data-song="${s.id}">
           <span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span>
           <span class="song-title"><span class="label">${esc(s.title)}</span></span>
           <span class="pct">${p}%</span>
           <span></span><span class="bar"><i style="width:${p}%"></i></span>
           ${tags ? `<span></span><span class="tags">${tags}</span>` : ''}
-        </button></td>${cells}</tr>`;
+        </button></div></td>${cells}</tr>`;
     };
 
     const list = [...album()];
@@ -398,7 +398,7 @@
     $('#todo-songs').innerHTML = songs.length ? songs.map(({ s, items, p }) => `
       <article class="todo-song">
         <header class="todo-song__head">
-          <span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span>
+          ${playBtn(s) || `<span class="meta">${s.album ? String(s.nr).padStart(2, '0') : '—'}</span>`}
           <button class="label link" data-song="${s.id}">${esc(s.title)}</button>
           <b class="pct">${p}%</b>
           <span class="bar"><i style="width:${p}%"></i></span>
@@ -431,6 +431,108 @@
     if (sb) openDrawer(+sb.dataset.song);
   });
 
+  /* ================= AUDIO: PLAYER & VERSIONEN ================= */
+  const versionsOf = (sid) => (S.audio && S.audio[sid]) || [];
+  const fmtDur = (t) => (isFinite(t) ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}` : '0:00');
+  const fmtSize = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB');
+  const audioSrc = (id, dl) => { const u = new URL(S.audioUrl, location.href); u.searchParams.set('audio', id); if (dl) u.searchParams.set('download', '1'); return u.toString(); };
+  let playing = null; // { id, song }
+
+  function playBtn(s) {
+    const v = versionsOf(s.id)[0];
+    if (!v) return '';
+    const on = playing && playing.id === v.id && !$('#pl-audio').paused;
+    return `<button class="play ${on ? 'is-on' : ''}" data-play="${v.id}" data-song-id="${s.id}" title="v${v.v}${v.note ? ' · ' + esc(v.note) : ''} abspielen" aria-label="${esc(s.title)} v${v.v} abspielen">${on ? '❚❚' : '▶'}</button>`;
+  }
+
+  const pl = { box: $('#player'), audio: $('#pl-audio'), toggle: $('#pl-toggle'), seek: $('#pl-seek') };
+  function syncPlayButtons() {
+    const paused = pl.audio.paused;
+    pl.toggle.textContent = paused ? '▶' : '❚❚';
+    $$('[data-play]').forEach((b) => { const on = playing && +b.dataset.play === playing.id && !paused; b.classList.toggle('is-on', on); b.textContent = on ? '❚❚' : '▶'; });
+  }
+  function play(versionId, songId) {
+    const s = songById(songId); const v = versionsOf(songId).find((x) => x.id === +versionId);
+    if (!s || !v) return;
+    if (playing && playing.id === v.id) { pl.audio.paused ? pl.audio.play() : pl.audio.pause(); return; }
+    playing = { id: v.id, song: s.id };
+    pl.audio.src = audioSrc(v.id);
+    $('#pl-title').textContent = s.title;
+    $('#pl-sub').textContent = `v${v.v}${v.note ? ' · ' + v.note : ''} · ${v.by}`;
+    pl.box.hidden = false; document.body.classList.add('has-player');
+    pl.audio.play().catch(() => toast('Abspielen nicht möglich'));
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: `${s.title} (v${v.v})`, artist: 'GHOSTLIKE', album: v.note || 'Studio' });
+      navigator.mediaSession.setActionHandler('play', () => pl.audio.play());
+      navigator.mediaSession.setActionHandler('pause', () => pl.audio.pause());
+      navigator.mediaSession.setActionHandler('seekto', (d) => { pl.audio.currentTime = d.seekTime; });
+    }
+  }
+  pl.toggle.addEventListener('click', () => { if (!playing) return; pl.audio.paused ? pl.audio.play() : pl.audio.pause(); });
+  $('#pl-close').addEventListener('click', () => { pl.audio.pause(); pl.audio.removeAttribute('src'); pl.audio.load(); playing = null; pl.box.hidden = true; document.body.classList.remove('has-player'); syncPlayButtons(); });
+  ['play', 'pause', 'ended'].forEach((ev) => pl.audio.addEventListener(ev, syncPlayButtons));
+  pl.audio.addEventListener('timeupdate', () => {
+    const d = pl.audio.duration;
+    if (isFinite(d) && d > 0 && !pl.seek.matches(':active')) pl.seek.value = Math.round((pl.audio.currentTime / d) * 1000);
+    $('#pl-time').textContent = `${fmtDur(pl.audio.currentTime)} / ${fmtDur(d)}`;
+  });
+  pl.seek.addEventListener('input', () => { const d = pl.audio.duration; if (isFinite(d)) pl.audio.currentTime = (pl.seek.value / 1000) * d; });
+  pl.audio.addEventListener('error', () => { if (pl.audio.getAttribute('src')) toast('Datei konnte nicht geladen werden'); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-play]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    play(+b.dataset.play, +b.dataset.songId);
+  }, true);
+
+  function renderVersions() {
+    const s = songById(curId); if (!s) return;
+    const list = versionsOf(s.id);
+    $('#d-max').textContent = `max. ${fmtSize(S.maxUpload)} pro Datei`;
+    $('#d-vlist').innerHTML = list.length ? list.map((v, i) => `
+      <li class="${i === 0 ? 'is-aktuell' : ''}">
+        <button class="play ${playing && playing.id === v.id && !pl.audio.paused ? 'is-on' : ''}" data-play="${v.id}" data-song-id="${s.id}" aria-label="v${v.v} abspielen">${playing && playing.id === v.id && !pl.audio.paused ? '❚❚' : '▶'}</button>
+        <span class="versions__info"><span class="label">v${v.v}${i === 0 ? ' <span class="tag tag--patina">aktuell</span>' : ''}${v.note ? ' · ' + esc(v.note) : ''}</span>
+        <span class="meta">${esc(fmt(v.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))} · ${esc(v.by)} · ${fmtSize(v.size)}</span></span>
+        <span class="versions__tools"><a class="link meta" href="${esc(audioSrc(v.id, true))}" title="Herunterladen">↓</a>${v.by === S.me.name || S.me.admin ? `<button class="link meta" data-del-version="${v.id}" title="Version löschen">✕</button>` : ''}</span>
+      </li>`).join('') : '<li class="leer">Noch keine Version. Lad die erste hoch.</li>';
+  }
+
+  function uploadVersion(file) {
+    const s = songById(curId); if (!s || !file) return;
+    if (!/\.(mp3|m4a|aac|wav)$/i.test(file.name)) { toast('Bitte eine MP3 (oder M4A/WAV) wählen'); return; }
+    if (S.maxUpload && file.size > S.maxUpload) { toast(`Zu groß: max. ${fmtSize(S.maxUpload)}. Tipp: als MP3 exportieren.`); return; }
+    const bar = $('#d-upbar'), fd = new FormData();
+    fd.append('file', file); fd.append('note', $('#d-vnote').value.trim());
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', CFG.rest + `songs/${s.id}/audio`);
+    xhr.setRequestHeader('X-WP-Nonce', CFG.nonce);
+    busy++; bar.hidden = false; $('i', bar).style.width = '0%';
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) $('i', bar).style.width = Math.round((e.loaded / e.total) * 100) + '%'; };
+    xhr.onload = () => {
+      busy--; bar.hidden = true;
+      let json = {}; try { json = JSON.parse(xhr.responseText); } catch (err) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        S.audio[s.id] = json.versions || [];
+        $('#d-vnote').value = ''; $('#d-file').value = '';
+        localLog(`${s.title} v${S.audio[s.id][0] ? S.audio[s.id][0].v : 1} hochgeladen`);
+        renderAll(); renderVersions(); toast('Hochgeladen ✓');
+      } else toast(json.message || 'Upload fehlgeschlagen');
+    };
+    xhr.onerror = () => { busy--; bar.hidden = true; toast('Keine Verbindung, bitte erneut versuchen'); };
+    xhr.send(fd);
+  }
+  $('#d-file').addEventListener('change', (e) => uploadVersion(e.target.files[0]));
+  const drop = $('#d-drop');
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('is-over'); }));
+  drop.addEventListener('drop', (e) => uploadVersion(e.dataTransfer.files[0]));
+  $('#d-vlist').addEventListener('click', async (e) => {
+    const d = e.target.closest('[data-del-version]'); if (!d) return;
+    if (!confirm('Diese Version endgültig löschen?')) return;
+    try { const r = await api('audio/' + d.dataset.delVersion, { method: 'DELETE' }); S.audio[curId] = r.versions || []; renderAll(); renderVersions(); toast('Version gelöscht'); }
+    catch (err) { toast(err.message); }
+  });
+
   /* ================= SONG-DETAIL ================= */
   const drawer = $('#drawer');
   function openDrawer(id) {
@@ -453,6 +555,7 @@
       return `${head}<li><span class="label">${esc(st.l)}</span><span class="wer">${(st.who || []).map((w) => av(w)).join('') || '<span class="meta">wer?</span>'}</span>
         <select data-step="${esc(st.k)}" aria-label="Status ${esc(st.l)}">${opts}</select></li>`;
     }).join('');
+    renderVersions();
     if (inputsToo) {
       $$('[data-meta]', drawer).forEach((i) => { i.value = s.meta[i.dataset.meta] || ''; });
       $$('[data-flag]', drawer).forEach((i) => { i.checked = !!s.flags[i.dataset.flag]; });
@@ -542,12 +645,14 @@
     $('#me-avatar').textContent = ini(S.me.name);
     renderHome(); renderCal(); renderStudio(); renderTodos(); renderProfile(false);
     if (curId && !drawer.hidden) fillDrawer(false);
+    syncPlayButtons();
   }
 
   async function load() {
     const fresh = await api('state');
     S = fresh;
     if (Array.isArray(S.attendance)) S.attendance = {};
+    if (!S.audio || Array.isArray(S.audio)) S.audio = {};
     S.songs.forEach((s) => { if (Array.isArray(s.st)) s.st = {}; if (Array.isArray(s.meta)) s.meta = {}; if (Array.isArray(s.flags)) s.flags = {}; });
     buildInitials();
     renderAll();
