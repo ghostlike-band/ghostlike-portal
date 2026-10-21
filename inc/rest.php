@@ -236,10 +236,7 @@ function glp_rest_song_step( WP_REST_Request $req ) {
 
 	$song   = glp_song( $id );
 	$label  = glp_step_label( $step['t'], $value );
-	if ( $old !== $value ) {
-		glp_history_add( $id, $key, $old, $value );
-	}
-	glp_log( $step['l'] . ' · ' . $song['title'] . ' → ' . $label );
+	glp_step_changed( $id, $step, $song['title'], $old, $value, $label );
 	return glp_ok( $song );
 }
 

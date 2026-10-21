@@ -23,6 +23,7 @@
         credentials: 'same-origin',
         headers: { 'X-WP-Nonce': CFG.nonce, 'Content-Type': 'application/json' },
         body: opts.body ? JSON.stringify(opts.body) : undefined,
+        keepalive: !!opts.keepalive,
       });
       const json = await res.json().catch(() => ({}));
       if (res.status === 401 || res.status === 403) { toast('Sitzung abgelaufen – bitte neu einloggen.'); setTimeout(() => location.reload(), 1500); }
@@ -83,7 +84,7 @@
   const songById = (id) => S.songs.find((s) => s.id === +id);
   const stepByKey = (k) => S.steps.find((s) => s.k === k);
   function normSong(s) { if (Array.isArray(s.st)) s.st = {}; if (Array.isArray(s.meta)) s.meta = {}; if (Array.isArray(s.flags)) s.flags = {}; return s; }
-  function replaceSong(song) { normSong(song); const i = S.songs.findIndex((s) => s.id === song.id); if (i >= 0) S.songs[i] = song; else S.songs.push(song); }
+  function replaceSong(song) { normSong(song); applyPending(song); const i = S.songs.findIndex((s) => s.id === song.id); if (i >= 0) S.songs[i] = song; else S.songs.push(song); }
   function localLog(txt) { S.log.unshift({ who: S.me.name, txt, t: Date.now() }); }
 
   /* ================= NAVIGATION ================= */
@@ -469,19 +470,50 @@
     }
   });
 
-  async function setStep(song, step, value) {
-    if (!song || !step) return;
-    const before = stateOf(song, step);
-    const v = value === undefined ? nextOf(step, before) : value;
-    const wasDone = pct(song) === 100;
-    song.st[step.k] = v;
-    if (!wasDone && pct(song) === 100 && song.album) setTimeout(() => toast(`🎉 ${song.title} ist fertig – ab in „Abgeschlossen“`), 50);
-    localLog(`${step.l} · ${song.title} → ${label(step, v)}`);
-    renderAll();
-    const c = $(`[data-cell="${song.id}|${step.k}"]`); if (c) c.classList.add('pop');
-    try { replaceSong(await api(`songs/${song.id}/step`, { method: 'POST', body: { step: step.k, value: v } })); renderAll(); refreshHistory(); }
-    catch (err) { song.st[step.k] = before; S.log.shift(); renderAll(); toast(err.message); }
+  // Statuswechsel: sofort anzeigen, aber erst nach einer kurzen Pause speichern.
+  // So landet beim Durchklicken nur der Status im Log, bei dem man stehen bleibt.
+  const STEP_DELAY = 1800;
+  const pendingSteps = new Map(); // "songId|step" → { sid, step, before, v, log, timer }
+  function applyPending(song) {
+    pendingSteps.forEach((p) => { if (p.sid === song.id) song.st[p.step.k] = p.v; });
+    return song;
   }
+  function setStep(songIn, step, value) {
+    const song = songIn && songById(songIn.id);
+    if (!song || !step) return;
+    const key = song.id + '|' + step.k;
+    const cur = stateOf(song, step);
+    const v = value === undefined ? nextOf(step, cur) : value;
+    let p = pendingSteps.get(key);
+    if (!p) { p = { sid: song.id, step, before: cur }; pendingSteps.set(key, p); busy++; }
+    const wasDone = pct(song) === 100;
+    p.v = v; song.st[step.k] = v;
+    if (!wasDone && pct(song) === 100 && song.album) setTimeout(() => toast(`🎉 ${song.title} ist fertig – ab in „Abgeschlossen“`), 50);
+    const txt = `${step.l} · ${song.title} → ${label(step, v)}`;
+    if (p.log) { p.log.txt = txt; p.log.t = Date.now(); } else { p.log = { who: S.me.name, txt, t: Date.now() }; S.log.unshift(p.log); }
+    renderAll();
+    const c = $(`[data-cell="${key}"]`); if (c) c.classList.add('pop');
+    clearTimeout(p.timer);
+    p.timer = setTimeout(() => commitStep(key), STEP_DELAY);
+  }
+  async function commitStep(key, leaving) {
+    const p = pendingSteps.get(key); if (!p) return;
+    pendingSteps.delete(key); clearTimeout(p.timer);
+    const dropLog = () => { const i = S.log.indexOf(p.log); if (i >= 0) S.log.splice(i, 1); };
+    try {
+      if (p.v === p.before) { dropLog(); if (!leaving) renderAll(); return; } // einmal rundum geklickt: nichts geändert
+      const res = await api(`songs/${p.sid}/step`, { method: 'POST', body: { step: p.step.k, value: p.v }, keepalive: !!leaving });
+      if (leaving) return;
+      replaceSong(res); renderAll(); refreshHistory();
+    } catch (err) {
+      const s = songById(p.sid); if (s) s.st[p.step.k] = p.before;
+      dropLog(); renderAll(); toast(err.message);
+    } finally { busy--; }
+  }
+  // Beim Verlassen/Wegwechseln nichts verlieren
+  const flushSteps = () => [...pendingSteps.keys()].forEach((k) => commitStep(k, true));
+  addEventListener('pagehide', flushSteps);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSteps(); });
 
   $('#studio-matrix').addEventListener('click', (e) => {
     if (e.target.closest('[data-grip]')) return;

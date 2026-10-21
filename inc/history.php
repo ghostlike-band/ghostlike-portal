@@ -18,6 +18,56 @@ function glp_history_add( $song_id, $step, $old, $new, $user_id = null, $time = 
 }
 
 /**
+ * Statusänderung festhalten (Historie + Aktivitäts-Log).
+ * Ändert dieselbe Person denselben Schritt innerhalb von 5 Minuten erneut, wird der letzte
+ * Eintrag aktualisiert statt ein neuer angelegt. Landet man wieder beim Ausgangsstatus,
+ * verschwindet der Eintrag ganz.
+ */
+const GLP_MERGE_SECONDS = 300;
+
+function glp_step_changed( $song_id, $step, $title, $old, $new, $label ) {
+	global $wpdb;
+	$uid   = get_current_user_id();
+	$since = gmdate( 'Y-m-d H:i:s', time() - GLP_MERGE_SECONDS );
+	$prefix = $step['l'] . ' · ' . $title . ' → ';
+
+	// Historie
+	$last = $wpdb->get_row( $wpdb->prepare(
+		'SELECT * FROM ' . glp_table( 'history' ) . ' WHERE song_id = %d AND step = %s ORDER BY id DESC LIMIT 1',
+		$song_id, $step['k']
+	) );
+	if ( $last && (int) $last->user_id === $uid && $last->created_at >= $since ) {
+		if ( $last->old_val !== null && (int) $last->old_val === (int) $new ) {
+			$wpdb->delete( glp_table( 'history' ), array( 'id' => $last->id ) );
+		} else {
+			$wpdb->update( glp_table( 'history' ), array( 'new_val' => (int) $new, 'created_at' => current_time( 'mysql', true ) ), array( 'id' => $last->id ) );
+		}
+		$merged_to_start = $last->old_val !== null && (int) $last->old_val === (int) $new;
+	} else {
+		if ( $old !== $new ) {
+			glp_history_add( $song_id, $step['k'], $old, $new );
+		}
+		$merged_to_start = false;
+	}
+
+	// Aktivitäts-Log
+	$log = $wpdb->get_row( $wpdb->prepare(
+		'SELECT * FROM ' . glp_table( 'log' ) . ' WHERE user_id = %d AND message LIKE %s AND created_at >= %s ORDER BY id DESC LIMIT 1',
+		$uid, $wpdb->esc_like( $prefix ) . '%', $since
+	) );
+	$newer = $log ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . glp_table( 'log' ) . ' WHERE id > %d', $log->id ) ) : 0;
+	if ( $log && $newer < 20 ) {
+		if ( $merged_to_start ) {
+			$wpdb->delete( glp_table( 'log' ), array( 'id' => $log->id ) );
+		} else {
+			$wpdb->update( glp_table( 'log' ), array( 'message' => mb_substr( $prefix . $label, 0, 250 ), 'created_at' => current_time( 'mysql', true ) ), array( 'id' => $log->id ) );
+		}
+	} elseif ( $old !== $new ) {
+		glp_log( $prefix . $label );
+	}
+}
+
+/**
  * Einmalig: bisherige Statusänderungen aus dem Aktivitäts-Log übernehmen
  * („Drums · LavaLampe → aufgenommen“). Der vorherige Status ist dort unbekannt.
  */
