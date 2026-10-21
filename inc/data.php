@@ -168,6 +168,35 @@ function glp_probe_settings() {
 	) );
 }
 
+/**
+ * Änderungsstand je Termin für das Kalender-Abo: [key => [seq, zeit]].
+ * SEQUENCE + LAST-MODIFIED sagen iPhone, Google & Co., dass sich ein Termin geändert hat.
+ */
+function glp_touch_event( $key ) {
+	$rev         = (array) get_option( 'glp_event_rev', array() );
+	$rev[ $key ] = array( (int) ( $rev[ $key ][0] ?? 0 ) + 1, time() );
+	if ( count( $rev ) > 400 ) {
+		uasort( $rev, fn( $a, $b ) => $b[1] <=> $a[1] );
+		$rev = array_slice( $rev, 0, 300, true );
+	}
+	update_option( 'glp_event_rev', $rev, false );
+}
+
+function glp_event_rev( $key ) {
+	$rev = (array) get_option( 'glp_event_rev', array() );
+	return $rev[ $key ] ?? array( 0, 0 );
+}
+
+/** Terminarten: Schlüssel => Name */
+function glp_event_types() {
+	return array( 'probe' => 'Bandprobe', 'treffen' => 'Treffen / Meeting', 'studio' => 'Studio-Session', 'konzert' => 'Konzert', 'termin' => 'Termin' );
+}
+
+function glp_type_label( $type ) {
+	$t = glp_event_types();
+	return $t[ $type ] ?? 'Termin';
+}
+
 /** Alle Termine von heute bis in $weeks Wochen: wöchentliche Proben + eigene Termine. */
 function glp_events( $weeks = 10, $from = null ) {
 	global $wpdb;
@@ -178,6 +207,7 @@ function glp_events( $weeks = 10, $from = null ) {
 
 	$p   = glp_probe_settings();
 	$off = (array) get_option( 'glp_probe_off', array() );
+	$ovr = (array) get_option( 'glp_probe_override', array() ); // einzelne Proben geändert: [Datum => Felder]
 	if ( $p['active'] ) {
 		$d = $now;
 		while ( (int) $d->format( 'w' ) !== (int) $p['weekday'] ) {
@@ -187,7 +217,7 @@ function glp_events( $weeks = 10, $from = null ) {
 		for ( ; $d < $until; $d = $d->modify( '+7 days' ) ) {
 			$start = $d->setTime( $h, $m );
 			$date  = $d->format( 'Y-m-d' );
-			$out[] = array(
+			$ev    = array(
 				'key'       => 'probe-' . $date,
 				'type'      => 'probe',
 				'title'     => 'Bandprobe',
@@ -195,7 +225,23 @@ function glp_events( $weeks = 10, $from = null ) {
 				'start'     => $start->format( DATE_ATOM ),
 				'cancelled' => in_array( $date, $off, true ),
 				'who'       => array(),
+				'recurring' => true,
+				'changed'   => false,
 			);
+			if ( ! empty( $ovr[ $date ] ) && is_array( $ovr[ $date ] ) ) {
+				$o = $ovr[ $date ];
+				[ $oh, $om ] = array_map( 'intval', explode( ':', ( $o['time'] ?? $p['time'] ) . ':0' ) );
+				$ev = array_merge( $ev, array(
+					'type'    => $o['type'] ?? 'probe',
+					'title'   => ( $o['title'] ?? '' ) !== '' ? $o['title'] : glp_type_label( $o['type'] ?? 'probe' ),
+					'place'   => ( $o['place'] ?? '' ) !== '' ? $o['place'] : $p['place'],
+					'start'   => $d->setTime( $oh, $om )->format( DATE_ATOM ),
+					'who'     => (array) ( $o['who'] ?? array() ),
+					'note'    => (string) ( $o['note'] ?? '' ),
+					'changed' => true,
+				) );
+			}
+			$out[] = $ev;
 		}
 	}
 

@@ -27,6 +27,8 @@ add_action( 'rest_api_init', function () {
 	$r( '/events/(?P<id>\d+)/plan', 'POST', 'glp_rest_event_plan' );
 	$r( '/attendance', 'POST', 'glp_rest_attendance' );
 	$r( '/probe-off', 'POST', 'glp_rest_probe_off' );
+	$r( '/probe-edit', 'POST', 'glp_rest_probe_edit' );
+	$r( '/events/(?P<id>\d+)/edit', 'POST', 'glp_rest_event_update' );
 	$r( '/ical-reset', 'POST', 'glp_rest_ical_reset' );
 	$r( '/profile', 'POST', 'glp_rest_profile' );
 	$r( '/profile/email', 'POST', 'glp_rest_profile_email' );
@@ -241,7 +243,7 @@ function glp_rest_song_step( WP_REST_Request $req ) {
 function glp_rest_event_create( WP_REST_Request $req ) {
 	global $wpdb;
 	$type  = sanitize_key( (string) $req->get_param( 'type' ) );
-	$type  = in_array( $type, array( 'studio', 'konzert', 'termin' ), true ) ? $type : 'termin';
+	$type  = in_array( $type, array( 'studio', 'konzert', 'termin', 'treffen' ), true ) ? $type : 'termin';
 	$title = sanitize_text_field( (string) $req->get_param( 'title' ) );
 	$date  = (string) $req->get_param( 'date' );
 	$time  = (string) $req->get_param( 'time' );
@@ -268,6 +270,73 @@ function glp_rest_event_create( WP_REST_Request $req ) {
 	}
 	glp_log( 'Neuer Termin: ' . $title . ' am ' . wp_date( 'd.m.', strtotime( $date ) ) );
 	return glp_ok( array( 'id' => $id ) );
+}
+
+/** Eigenen Termin ändern */
+function glp_rest_event_update( WP_REST_Request $req ) {
+	global $wpdb;
+	$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . glp_table( 'events' ) . ' WHERE id = %d', (int) $req['id'] ) );
+	if ( ! $row ) {
+		return glp_err( 'Termin nicht gefunden.', 404 );
+	}
+	$type  = sanitize_key( (string) $req->get_param( 'type' ) );
+	$type  = in_array( $type, array( 'studio', 'konzert', 'termin', 'treffen' ), true ) ? $type : $row->type;
+	$title = sanitize_text_field( (string) $req->get_param( 'title' ) );
+	$date  = (string) $req->get_param( 'date' );
+	$time  = (string) $req->get_param( 'time' );
+	if ( $title === '' || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+		return glp_err( 'Bitte Titel und Datum angeben.' );
+	}
+	if ( ! preg_match( '/^\d{2}:\d{2}$/', $time ) ) {
+		$time = '19:00';
+	}
+	$data = array(
+		'type'      => $type,
+		'title'     => $title,
+		'place'     => sanitize_text_field( (string) $req->get_param( 'place' ) ),
+		'starts_at' => $date . ' ' . $time . ':00',
+		'who'       => wp_json_encode( array_values( array_filter( array_map( 'sanitize_text_field', (array) $req->get_param( 'who' ) ) ) ) ),
+		'note'      => sanitize_textarea_field( (string) $req->get_param( 'note' ) ),
+	);
+	if ( $req->has_param( 'plan' ) ) {
+		$data['plan'] = wp_json_encode( $type === 'studio' ? glp_clean_plan( $req->get_param( 'plan' ) ) : array() );
+	}
+	$wpdb->update( glp_table( 'events' ), $data, array( 'id' => $row->id ) );
+	glp_touch_event( 'ev-' . $row->id );
+	glp_log( 'Termin geändert: ' . $title . ' am ' . wp_date( 'd.m.', strtotime( $date ) ) );
+	return glp_ok( array( 'id' => (int) $row->id ) );
+}
+
+/** Eine einzelne wöchentliche Probe ändern (z. B. Treffen statt Probe) oder zurücksetzen */
+function glp_rest_probe_edit( WP_REST_Request $req ) {
+	$date = (string) $req->get_param( 'date' );
+	if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+		return glp_err( 'Ungültiges Datum.' );
+	}
+	$ovr = (array) get_option( 'glp_probe_override', array() );
+	if ( $req->get_param( 'reset' ) ) {
+		unset( $ovr[ $date ] );
+		$msg = 'Probe am ' . wp_date( 'd.m.', strtotime( $date ) ) . ' zurückgesetzt';
+	} else {
+		$type = sanitize_key( (string) $req->get_param( 'type' ) );
+		$type = array_key_exists( $type, glp_event_types() ) ? $type : 'probe';
+		$time = (string) $req->get_param( 'time' );
+		$ovr[ $date ] = array(
+			'type'  => $type,
+			'title' => mb_substr( sanitize_text_field( (string) $req->get_param( 'title' ) ), 0, 190 ),
+			'time'  => preg_match( '/^\d{2}:\d{2}$/', $time ) ? $time : glp_probe_settings()['time'],
+			'place' => mb_substr( sanitize_text_field( (string) $req->get_param( 'place' ) ), 0, 190 ),
+			'note'  => mb_substr( sanitize_textarea_field( (string) $req->get_param( 'note' ) ), 0, 2000 ),
+			'who'   => array_values( array_filter( array_map( 'sanitize_text_field', (array) $req->get_param( 'who' ) ) ) ),
+		);
+		$msg = 'Probe am ' . wp_date( 'd.m.', strtotime( $date ) ) . ' geändert: ' . ( $ovr[ $date ]['title'] ?: glp_type_label( $type ) );
+	}
+	// Alte Ausnahmen aufräumen
+	$ovr = array_filter( $ovr, fn( $d ) => $d >= wp_date( 'Y-m-d', strtotime( '-60 days' ) ), ARRAY_FILTER_USE_KEY );
+	update_option( 'glp_probe_override', $ovr, false );
+	glp_touch_event( 'probe-' . $date );
+	glp_log( $msg );
+	return glp_ok( array( 'ok' => true ) );
 }
 
 function glp_rest_event_delete( WP_REST_Request $req ) {
@@ -307,6 +376,7 @@ function glp_rest_attendance( WP_REST_Request $req ) {
 	} else {
 		$wpdb->replace( glp_table( 'attendance' ), array( 'event_key' => $key, 'user_id' => $uid, 'status' => $status, 'updated_at' => current_time( 'mysql' ) ) );
 	}
+	glp_touch_event( $key ); // Beschreibung („Dabei: …“) hat sich geändert
 	return glp_ok( array( 'ok' => true ) );
 }
 
@@ -321,6 +391,7 @@ function glp_rest_probe_off( WP_REST_Request $req ) {
 	// Alte Daten aufräumen
 	$off = array_values( array_filter( $off, fn( $d ) => $d >= wp_date( 'Y-m-d', strtotime( '-60 days' ) ) ) );
 	update_option( 'glp_probe_off', $off, false );
+	glp_touch_event( 'probe-' . $date );
 	glp_log( 'Probe am ' . wp_date( 'd.m.', strtotime( $date ) ) . ( $on ? ' fällt aus' : ' findet wieder statt' ) );
 	return glp_ok( array( 'ok' => true ) );
 }
@@ -355,8 +426,8 @@ function glp_rest_ical( WP_REST_Request $req ) {
 	if ( ! $only ) {
 		$out[] = 'X-WR-CALNAME:GHOSTLIKE';
 		$out[] = 'X-WR-TIMEZONE:' . wp_timezone_string();
-		$out[] = 'REFRESH-INTERVAL;VALUE=DURATION:PT6H';
-		$out[] = 'X-PUBLISHED-TTL:PT6H';
+		$out[] = 'REFRESH-INTERVAL;VALUE=DURATION:PT1H';
+		$out[] = 'X-PUBLISHED-TTL:PT1H';
 	}
 	// Zu- und Absagen für die Beschreibung
 	$att     = (array) glp_attendance( array_column( $events, 'key' ) );
@@ -409,12 +480,14 @@ function glp_rest_ical( WP_REST_Request $req ) {
 
 	foreach ( $events as $e ) {
 		$start = new DateTimeImmutable( $e['start'] );
-		$hours = $e['type'] === 'probe' ? 3 : ( $e['type'] === 'konzert' ? 5 : 4 );
+		$hours = array( 'probe' => 3, 'konzert' => 5, 'treffen' => 2 )[ $e['type'] ] ?? 4;
 		$end   = $start->modify( '+' . $hours . ' hours' );
 		$utc   = new DateTimeZone( 'UTC' );
 		$out[] = 'BEGIN:VEVENT';
 		$out[] = 'UID:' . $e['key'] . '@' . $host;
 		$out[] = 'DTSTAMP:' . gmdate( 'Ymd\THis\Z' );
+		[ $seq, $mod ] = glp_event_rev( $e['key'] );
+		$out[] = 'SEQUENCE:' . (int) $seq;
 		$out[] = 'DTSTART:' . $start->setTimezone( $utc )->format( 'Ymd\THis\Z' );
 		$out[] = 'DTEND:' . $end->setTimezone( $utc )->format( 'Ymd\THis\Z' );
 		$out[] = 'SUMMARY:' . $esc( ( $e['cancelled'] ? 'ABGESAGT: ' : '' ) . 'GHOSTLIKE · ' . $e['title'] );
@@ -425,7 +498,7 @@ function glp_rest_ical( WP_REST_Request $req ) {
 			$out[] = 'STATUS:CANCELLED';
 		}
 		$out[] = 'DESCRIPTION:' . $esc( $describe( $e ) );
-		$out[] = 'LAST-MODIFIED:' . gmdate( 'Ymd\THis\Z' );
+		$out[] = 'LAST-MODIFIED:' . gmdate( 'Ymd\THis\Z', $mod ?: strtotime( '2026-01-01' ) );
 		$out[] = 'URL:' . glp_portal_url();
 		if ( $only ) {
 			$out = array_merge( $out, array( 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' . $esc( 'GHOSTLIKE · ' . $e['title'] ), 'TRIGGER:-PT2H', 'END:VALARM' ) );

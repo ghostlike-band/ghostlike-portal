@@ -432,3 +432,8 @@ body.is-sorting, body.is-sorting * { cursor: grabbing !important; user-select: n
 .check input { accent-color: var(--patina); margin-top: 3px; flex: none; }
 textarea.lyrics { font-family: var(--f-mono); font-size: 13px; line-height: 1.6; resize: vertical; }
 [hidden] { display: none !important; }
+
+/* Termine ändern */
+.cal__note { white-space: pre-line; }
+.event-form__head { color: var(--akzent); }
+.event-form input:disabled { opacity: .6; }

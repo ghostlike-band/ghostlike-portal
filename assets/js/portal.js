@@ -138,7 +138,7 @@
       <span class="meta">${esc(typeLabel(next.type))}</span>
       <p class="display-m">${esc(fmt(next.start, { weekday: 'short', day: '2-digit', month: '2-digit' }))}</p>
       <span class="label">${esc(next.title)}</span>
-      <span class="meta meta--hell">${esc(next.place || '')}${next.type !== 'probe' ? ' · ' + fmtTime(next.start) : ''}</span>
+      <span class="meta meta--hell">${esc(next.place || '')}${showTime(next) ? ' · ' + fmtTime(next.start) : ''}</span>
       <div class="zusage">${zusageHTML(next)}</div>
       ${addLink(next)}` : '<span class="meta">Keine Termine in Sicht.</span>';
 
@@ -166,7 +166,7 @@
 
   /* ================= KALENDER ================= */
   const eventIcs = (e) => S.ical + '?event=' + encodeURIComponent(e.key);
-  const addLink = (e) => (e.cancelled ? '' : `<a class="link meta cal__add" href="${esc(eventIcs(e))}">＋ In meinen Kalender</a>`);
+  const addLink = (e) => (e.cancelled ? '' : `<a class="link meta cal__add" href="${esc(eventIcs(e))}" title="Einmalig eintragen. Spätere Änderungen kommen nur über das Kalender-Abo.">＋ In meinen Kalender</a>`);
   function fillAbo() {
     const webcal = S.ical.replace(/^https?:/, 'webcal:');
     $('#ical-url').value = S.ical;
@@ -174,7 +174,8 @@
     $('#abo-google').href = 'https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcal);
     $('#abo-outlook').href = 'https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(S.ical) + '&name=GHOSTLIKE';
   }
-  const typeLabel = (t) => ({ probe: 'Bandprobe', studio: 'Studio-Session', konzert: 'Konzert', termin: 'Termin' }[t] || 'Termin');
+  const typeLabel = (t) => ({ probe: 'Bandprobe', treffen: 'Treffen / Meeting', studio: 'Studio-Session', konzert: 'Konzert', termin: 'Termin' }[t] || 'Termin');
+  const showTime = (e) => !(e.type === 'probe' && e.recurring && !e.changed); // normale Probe: Uhrzeit steht schon beim Ort
 
   function renderCal() {
     const list = S.events.filter((e) => calType === 'alle' || e.type === calType);
@@ -183,11 +184,12 @@
         <div class="cal__date"><span class="meta">${esc(fmt(e.start, { weekday: 'short' }))}</span><b>${esc(fmt(e.start, { day: '2-digit', month: '2-digit' }))}</b></div>
         <div class="cal__info">
           <span class="label">${esc(e.title)}</span>
-          <span class="meta">${esc(typeLabel(e.type))}${e.type !== 'probe' ? ' · ' + fmtTime(e.start) : ''}${e.place ? ' · ' + esc(e.place) : ''}</span>
+          <span class="meta">${esc(typeLabel(e.type))}${e.recurring && e.changed ? ' <span class="tag tag--leer">statt Probe</span>' : ''}${showTime(e) ? ' · ' + fmtTime(e.start) : ''}${e.place ? ' · ' + esc(e.place) : ''}</span>
+          ${e.note ? `<span class="meta meta--hell cal__note">${esc(e.note)}</span>` : ''}
           ${e.who && e.who.length ? `<span class="wer">${e.who.map((w) => av(w)).join('')}</span>` : ''}
           ${planItems(e).length ? `<span class="meta meta--hell cal__plan">Geplant: ${esc(planSummary(planItems(e)))}</span>` : ''}
-          <span class="cal__tools">${addLink(e)}${e.type === 'probe'
-            ? `<button class="link meta" data-probe="${esc(e.start.slice(0, 10))}" data-off="${e.cancelled ? 0 : 1}">${e.cancelled ? '↺ Findet doch statt' : '✕ Probe fällt aus'}</button>`
+          <span class="cal__tools">${addLink(e)}${!e.cancelled ? `<button class="link meta" data-edit-event="${esc(e.key)}">✎ Ändern</button>` : ''}${e.recurring
+            ? `<button class="link meta" data-probe="${esc(e.start.slice(0, 10))}" data-off="${e.cancelled ? 0 : 1}">${e.cancelled ? '↺ Findet doch statt' : '✕ Fällt aus'}</button>`
             : `<button class="link meta" data-del-event="${e.id}">✕ Löschen</button>`}</span>
         </div>
         <div class="zusage">${zusageHTML(e)}</div>
@@ -200,7 +202,7 @@
     const p = e.target.closest('[data-probe]');
     if (p) {
       const off = p.dataset.off === '1';
-      if (off && !confirm('Probe am ' + fmt(p.dataset.probe, { day: '2-digit', month: '2-digit' }) + ' für alle absagen?')) return;
+      if (off && !confirm('Termin am ' + fmt(p.dataset.probe, { day: '2-digit', month: '2-digit' }) + ' für alle absagen?')) return;
       try { await api('probe-off', { method: 'POST', body: { date: p.dataset.probe, off } }); await load(); toast(off ? 'Probe abgesagt' : 'Probe findet statt'); }
       catch (err) { toast(err.message); }
       return;
@@ -213,19 +215,56 @@
     }
   });
 
-  // Termin anlegen
+  // Termin anlegen oder ändern (ein Formular für beides)
   const evForm = $('#event-form');
-  $('#event-toggle').addEventListener('click', () => {
-    evForm.hidden = !evForm.hidden;
-    if (!evForm.hidden) {
-      $('#ev-who').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${esc(m.name)}"><span>${esc(m.name)}</span></label>`).join('');
-      $('#ev-plan').innerHTML = planPicker(new Set());
-      syncPlanBox(); titleAuto = true;
-      if (!$('#ev-date').value) $('#ev-date').value = new Date().toISOString().slice(0, 10);
-      $('#ev-title').focus();
+  let editing = null; // Termin, der gerade geändert wird
+  function openEventForm(ev) {
+    editing = ev || null;
+    evForm.reset();
+    const who = new Set(ev ? ev.who || [] : []);
+    $('#ev-who').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${esc(m.name)}" ${who.has(m.name) ? 'checked' : ''}><span>${esc(m.name)}</span></label>`).join('');
+    $('#ev-plan').innerHTML = planPicker(new Set(ev && ev.plan ? ev.plan.map((p) => p.s + '|' + p.k) : []));
+    $('#ev-type').querySelector('[value=probe]').hidden = !(ev && ev.recurring);
+    const head = $('#ev-head');
+    head.hidden = !ev;
+    if (ev) {
+      const d = new Date(ev.start);
+      $('#ev-type').value = ev.type;
+      $('#ev-title').value = ev.recurring && !ev.changed ? '' : ev.title;
+      $('#ev-date').value = ev.start.slice(0, 10);
+      $('#ev-time').value = fmtTime(ev.start);
+      $('#ev-place').value = ev.recurring && !ev.changed ? (S.probe && S.probe.place) || '' : ev.place || '';
+      $('#ev-note').value = ev.note || '';
+      head.textContent = ev.recurring
+        ? `Nur diesen Termin ändern: ${fmt(d, { weekday: 'long', day: '2-digit', month: 'long' })}. Die anderen Proben bleiben, wie sie sind.`
+        : `Termin ändern: ${fmt(d, { weekday: 'long', day: '2-digit', month: 'long' })}`;
+      titleAuto = false;
+    } else {
+      $('#ev-type').value = 'treffen';
+      $('#ev-date').value = new Date().toISOString().slice(0, 10);
+      titleAuto = true;
     }
+    $('#ev-date').disabled = !!(ev && ev.recurring); // eine Probe bleibt an ihrem Tag
+    $('#ev-title').required = !(ev && ev.recurring);
+    $('#ev-reset').hidden = !(ev && ev.recurring && ev.changed);
+    $('#ev-submit').textContent = ev ? 'Änderung speichern' : 'Termin speichern';
+    syncPlanBox();
+    evForm.hidden = false;
+    evForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#ev-title').focus({ preventScroll: true });
+  }
+  $('#event-toggle').addEventListener('click', () => { if (!evForm.hidden && !editing) { evForm.hidden = true; return; } openEventForm(null); });
+  $('#event-cancel').addEventListener('click', () => { evForm.hidden = true; editing = null; });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-edit-event]'); if (!b) return;
+    const ev = S.events.find((x) => x.key === b.dataset.editEvent);
+    if (ev) { if ($('[data-view="kalender"]').hidden) show('kalender'); openEventForm(ev); }
   });
-  $('#event-cancel').addEventListener('click', () => { evForm.hidden = true; });
+  $('#ev-reset').addEventListener('click', async () => {
+    if (!editing) return;
+    try { await api('probe-edit', { method: 'POST', body: { date: editing.start.slice(0, 10), reset: true } }); evForm.hidden = true; editing = null; await load(); toast('Wieder normale Probe'); }
+    catch (err) { toast(err.message); }
+  });
   // Studio-Session: Songs & Schritte auswählen, Titel ergibt sich daraus (solange niemand selbst tippt)
   let titleAuto = true;
   const syncPlanBox = () => { $('#ev-plan-box').hidden = $('#ev-type').value !== 'studio'; };
@@ -240,14 +279,17 @@
     e.preventDefault();
     const body = {
       type: $('#ev-type').value, title: $('#ev-title').value.trim(), date: $('#ev-date').value,
-      time: $('#ev-time').value, place: $('#ev-place').value.trim(),
+      time: $('#ev-time').value, place: $('#ev-place').value.trim(), note: $('#ev-note').value.trim(),
       who: $$('#ev-who input:checked').map((i) => i.value),
       plan: $('#ev-type').value === 'studio' ? readPlan($('#ev-plan')) : [],
     };
     try {
-      await api('events', { method: 'POST', body });
+      if (editing && editing.recurring) await api('probe-edit', { method: 'POST', body: { ...body, date: editing.start.slice(0, 10) } });
+      else if (editing) await api(`events/${editing.id}/edit`, { method: 'POST', body });
+      else await api('events', { method: 'POST', body });
+      const was = editing; editing = null;
       evForm.reset(); evForm.hidden = true;
-      await load(); toast('Termin gespeichert');
+      await load(); toast(was ? 'Geändert ✓ · Abos aktualisieren sich automatisch' : 'Termin gespeichert');
     } catch (err) { toast(err.message); }
   });
 

@@ -139,7 +139,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				</div>
 			</header>
 			<div class="panel" id="ical-panel" hidden>
-				<p class="klein">Einmal abonnieren, danach erscheinen alle Proben und Termine automatisch in deinem Kalender und bleiben aktuell, auch wenn eine Probe ausfällt. Der Link ist persönlich, bitte nicht weitergeben.</p>
+				<p class="klein">Einmal abonnieren, danach erscheinen alle Proben und Termine automatisch in deinem Kalender und bleiben aktuell: Absagen und Änderungen (z. B. Treffen statt Probe) kommen von selbst nach, bei Apple und Outlook meist innerhalb einer Stunde, bei Google Kalender kann es bis zu einem Tag dauern. Der Link ist persönlich, bitte nicht weitergeben.</p>
 				<div class="abo">
 					<a class="btn btn--patina" id="abo-apple" href="#">Apple Kalender <span class="pfeil">↗</span></a>
 					<a class="btn" id="abo-google" href="#" target="_blank" rel="noopener">Google Kalender <span class="pfeil">↗</span></a>
@@ -149,20 +149,23 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<div class="copy"><input id="ical-url" readonly aria-label="Persönlicher Kalender-Link"><button class="btn btn--klein" id="ical-copy">Kopieren</button><button class="btn btn--klein" id="ical-reset" title="Neuen Link erzeugen, alter wird ungültig">Neu erzeugen</button></div>
 			</div>
 			<form class="panel event-form" id="event-form" hidden>
-				<label class="feld"><span class="meta">Art</span><select name="type" id="ev-type"><option value="studio">Studio-Session</option><option value="konzert">Konzert</option><option value="termin">Sonstiger Termin</option></select></label>
+				<p class="feld--breit event-form__head meta" id="ev-head" hidden></p>
+				<label class="feld"><span class="meta">Art</span><select name="type" id="ev-type"><option value="probe" hidden>Bandprobe</option><option value="treffen">Treffen / Meeting</option><option value="studio">Studio-Session</option><option value="konzert">Konzert</option><option value="termin">Sonstiger Termin</option></select></label>
 				<label class="feld feld--breit"><span class="meta">Titel</span><input name="title" id="ev-title" required placeholder="z. B. Drums · Mikrofilet"></label>
 				<label class="feld"><span class="meta">Datum</span><input type="date" name="date" id="ev-date" required></label>
 				<label class="feld"><span class="meta">Uhrzeit</span><input type="time" name="time" id="ev-time" value="19:00"></label>
 				<label class="feld feld--breit"><span class="meta">Ort</span><input name="place" id="ev-place" placeholder="z. B. bei Valentin"></label>
 				<fieldset class="feld feld--breit"><legend class="meta">Wer ist dabei?</legend><div class="who-pick" id="ev-who"></div></fieldset>
 				<fieldset class="feld feld--breit" id="ev-plan-box"><legend class="meta">Was wird aufgenommen? (optional)</legend><div class="plan-pick" id="ev-plan"></div></fieldset>
-				<div class="feld--breit actions"><button class="btn btn--patina" type="submit">Termin speichern</button><button class="btn" type="button" id="event-cancel">Abbrechen</button></div>
+				<label class="feld feld--breit"><span class="meta">Notiz (optional)</span><textarea name="note" id="ev-note" rows="2" placeholder="z. B. Agenda: Setlist, Fotoshooting, Merch"></textarea></label>
+				<div class="feld--breit actions"><button class="btn btn--patina" type="submit" id="ev-submit">Termin speichern</button><button class="btn" type="button" id="event-cancel">Abbrechen</button><button class="link meta" type="button" id="ev-reset" hidden>↺ Wieder normale Probe</button></div>
 			</form>
 			<div class="filter" id="cal-filter">
 				<button class="chip is-on" data-type="alle">Alle</button>
 				<button class="chip" data-type="probe">Proben</button>
 				<button class="chip" data-type="studio">Studio</button>
 				<button class="chip" data-type="konzert">Konzerte</button>
+				<button class="chip" data-type="treffen">Treffen</button>
 				<button class="chip" data-type="termin">Sonstiges</button>
 			</div>
 			<ol class="cal" id="cal"></ol>
