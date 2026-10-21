@@ -214,9 +214,11 @@ function glp_rest_song_step( WP_REST_Request $req ) {
 		return glp_err( 'Ungültiger Schritt oder Status.' );
 	}
 
-	if ( ! glp_song( $id ) ) {
+	$before = glp_song( $id );
+	if ( ! $before ) {
 		return glp_err( 'Song nicht gefunden.', 404 );
 	}
+	$old = isset( ( (array) $before['st'] )[ $key ] ) ? (int) ( (array) $before['st'] )[ $key ] : 0;
 	// Nur diesen einen Schritt in der Datenbank ändern (JSON_SET), damit sich
 	// zwei gleichzeitige Klicks auf verschiedene Felder nicht überschreiben.
 	$quiet = $wpdb->suppress_errors( true );
@@ -234,6 +236,9 @@ function glp_rest_song_step( WP_REST_Request $req ) {
 
 	$song   = glp_song( $id );
 	$label  = glp_step_label( $step['t'], $value );
+	if ( $old !== $value ) {
+		glp_history_add( $id, $key, $old, $value );
+	}
 	glp_log( $step['l'] . ' · ' . $song['title'] . ' → ' . $label );
 	return glp_ok( $song );
 }

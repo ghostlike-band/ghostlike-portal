@@ -437,3 +437,29 @@ textarea.lyrics { font-family: var(--f-mono); font-size: 13px; line-height: 1.6;
 .cal__note { white-space: pre-line; }
 .event-form__head { color: var(--akzent); }
 .event-form input:disabled { opacity: .6; }
+
+/* ---------- Historie ---------- */
+.history { margin-top: 16px; }
+.history__sum { display: flex; align-items: baseline; gap: 14px; cursor: pointer; list-style: none; }
+.history__sum::-webkit-details-marker { display: none; }
+.history__sum .label { flex: 1; font-size: 14px; }
+.history__chev { color: var(--flechte); transition: transform .25s var(--ease); }
+.history[open] .history__chev { transform: rotate(180deg); }
+.history__bar { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: end; margin: 16px 0 6px; }
+.history__bar .feld { min-width: 220px; }
+.history__list { list-style: none; margin: 10px 0 0; padding: 0; }
+.history__day { padding: 14px 0 6px; color: var(--akzent); border-bottom: 1px solid var(--linie); }
+.history__item { display: grid; grid-template-columns: 48px auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--linie); }
+.history__time { color: var(--flechte); }
+.history__what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history__what .label { font-size: 13px; }
+.history__what .link.label { color: var(--kalkweiss); }
+.history__change { display: inline-flex; align-items: center; gap: 6px; justify-self: end; }
+.history__change .cell-dot { width: 14px; height: 14px; }
+.history__arrow { color: var(--flechte); font-size: 12px; }
+#h-more { margin-top: 12px; }
+.history--song { border: 1px solid var(--linie); padding: 12px 14px; }
+@media (max-width: 600px) {
+  .history__item { grid-template-columns: 42px auto minmax(0, 1fr); }
+  .history__change { grid-column: 3; justify-self: start; }
+}

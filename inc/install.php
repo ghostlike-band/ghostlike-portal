@@ -95,7 +95,22 @@ function glp_install() {
 		}
 	}
 
+	// Historie: wer hat wann welchen Studio-Status geändert
+	dbDelta( "CREATE TABLE " . glp_table( 'history' ) . " (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		song_id bigint(20) unsigned NOT NULL DEFAULT 0,
+		step varchar(40) NOT NULL DEFAULT '',
+		old_val smallint(6) NULL,
+		new_val smallint(6) NOT NULL DEFAULT 0,
+		user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+		created_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		KEY song_id (song_id),
+		KEY created_at (created_at)
+	) $c;" );
+
 	glp_seed_songs();
+	glp_history_backfill();
 	update_option( 'glp_db_version', GLP_DB_VERSION );
 }
 

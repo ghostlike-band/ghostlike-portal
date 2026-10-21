@@ -238,6 +238,15 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<ol class="weights" id="weights"></ol>
 				</article>
 			</div>
+			<details class="history card" id="history">
+				<summary class="history__sum"><span class="meta">Historie</span><span class="label">Wer hat wann was geändert?</span><span class="history__chev" aria-hidden="true">▾</span></summary>
+				<div class="history__bar">
+					<label class="feld"><span class="meta">Song</span><select id="h-song"><option value="">Alle Songs</option></select></label>
+					<div class="filter" id="h-who"></div>
+				</div>
+				<ol class="history__list" id="h-list"></ol>
+				<button type="button" class="btn btn--klein" id="h-more" hidden>Ältere laden</button>
+			</details>
 		</section>
 
 		<!-- ===== PROFIL ===== -->
@@ -351,6 +360,10 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 		<ol class="steps" id="d-steps"></ol>
 		<label class="feld"><span class="meta">Notizen / Was fehlt noch?</span><textarea data-meta="note" id="d-m-note" rows="3"></textarea></label>
 		<label class="feld"><span class="meta">Lyrics</span><textarea data-meta="lyrics" id="d-m-lyrics" rows="8" class="lyrics" placeholder="Strophe 1 …"></textarea></label>
+		<details class="history history--song" id="d-history">
+			<summary class="history__sum"><span class="meta">Verlauf</span><span class="label">Änderungen an diesem Song</span><span class="history__chev" aria-hidden="true">▾</span></summary>
+			<ol class="history__list" id="d-hlist"></ol>
+		</details>
 		<div class="drawer__foot"><span class="meta" id="d-saved"></span><button class="btn btn--klein btn--gefahr" id="d-delete">Song löschen</button></div>
 	</aside>
 </div>

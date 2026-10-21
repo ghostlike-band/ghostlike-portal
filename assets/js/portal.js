@@ -479,7 +479,7 @@
     localLog(`${step.l} · ${song.title} → ${label(step, v)}`);
     renderAll();
     const c = $(`[data-cell="${song.id}|${step.k}"]`); if (c) c.classList.add('pop');
-    try { replaceSong(await api(`songs/${song.id}/step`, { method: 'POST', body: { step: step.k, value: v } })); renderAll(); }
+    try { replaceSong(await api(`songs/${song.id}/step`, { method: 'POST', body: { step: step.k, value: v } })); renderAll(); refreshHistory(); }
     catch (err) { song.st[step.k] = before; S.log.shift(); renderAll(); toast(err.message); }
   }
 
@@ -772,6 +772,61 @@
     catch (err) { toast(err.message); }
   });
 
+  /* ================= HISTORIE ================= */
+  const H = { song: '', user: '', cursor: 0, items: [] };
+  const dayLabel = (t) => {
+    const d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+    return diff === 0 ? 'Heute' : diff === 1 ? 'Gestern' : fmt(t, { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
+  };
+  function histRows(items, withSong) {
+    let day = '';
+    return items.map((h) => {
+      const st = stepByKey(h.step); if (!st) return '';
+      const d = dayLabel(h.t), head = d !== day ? `<li class="history__day meta">${esc(d)}</li>` : ''; day = d;
+      const from = h.old === null ? '' : `<i class="cell-dot ${cellCls(st, h.old)}" title="${esc(label(st, h.old))}"></i><span class="history__arrow">→</span>`;
+      return `${head}<li class="history__item">
+        <span class="meta history__time">${esc(fmtTime(h.t))}</span>
+        ${av(h.who)}
+        <span class="history__what">${withSong ? `<button class="link label" data-song="${h.song}">${esc(h.title)}</button> · ` : ''}<span class="label">${esc(st.l)}</span></span>
+        <span class="history__change">${from}<i class="cell-dot ${cellCls(st, h.new)}"></i><span class="meta">${esc(label(st, h.new))}</span></span>
+      </li>`;
+    }).join('');
+  }
+  async function loadHistory(reset) {
+    if (reset) { H.cursor = 0; H.items = []; }
+    const q = new URLSearchParams({ limit: 60 });
+    if (H.song) q.set('song', H.song);
+    if (H.user) q.set('user', H.user);
+    if (H.cursor) q.set('before', H.cursor);
+    try {
+      const r = await api('history?' + q);
+      H.items = H.items.concat(r.items);
+      H.cursor = r.items.length ? r.items[r.items.length - 1].id : H.cursor;
+      $('#h-list').innerHTML = histRows(H.items, true) || '<li class="leer">Noch keine Änderungen in dieser Auswahl.</li>';
+      $('#h-more').hidden = !r.more;
+    } catch (err) { toast(err.message); }
+  }
+  function fillHistoryFilters() {
+    const sel = $('#h-song'), cur = sel.value;
+    sel.innerHTML = '<option value="">Alle Songs</option>' + [...S.songs].sort(byNr).map((s) => `<option value="${s.id}">${esc((s.album ? String(s.nr).padStart(2, '0') + ' · ' : '') + s.title)}</option>`).join('');
+    sel.value = cur;
+    $('#h-who').innerHTML = '<span class="meta">Wer:</span>' + [{ id: '', name: 'Alle' }].concat(S.members).map((m) => `<button type="button" class="chip ${String(H.user) === String(m.id) ? 'is-on' : ''}" data-h-user="${m.id}">${esc(m.name)}</button>`).join('');
+  }
+  $('#history').addEventListener('toggle', () => { if ($('#history').open) { fillHistoryFilters(); loadHistory(true); } });
+  $('#h-song').addEventListener('change', (e) => { H.song = e.target.value; loadHistory(true); });
+  $('#h-who').addEventListener('click', (e) => { const b = e.target.closest('[data-h-user]'); if (!b) return; H.user = b.dataset.hUser; fillHistoryFilters(); loadHistory(true); });
+  $('#h-more').addEventListener('click', () => loadHistory(false));
+  $('#h-list').addEventListener('click', (e) => { const b = e.target.closest('[data-song]'); if (b) openDrawer(+b.dataset.song); });
+  async function loadSongHistory() {
+    const s = songById(curId); if (!s || !$('#d-history').open) return;
+    try { const r = await api(`history?song=${s.id}&limit=100`); $('#d-hlist').innerHTML = histRows(r.items, false) || '<li class="leer">Noch keine Änderungen.</li>'; }
+    catch (err) { $('#d-hlist').innerHTML = `<li class="leer">${esc(err.message)}</li>`; }
+  }
+  $('#d-history').addEventListener('toggle', loadSongHistory);
+  let histTimer = null;
+  const refreshHistory = () => { clearTimeout(histTimer); histTimer = setTimeout(() => { if ($('#history').open) loadHistory(true); loadSongHistory(); }, 600); };
+
   /* ================= DATEIEN (Tabs, Noten …) ================= */
   const filesOf = (sid) => (S.files && S.files[sid]) || [];
   const inlineExt = /^(pdf|png|jpe?g|txt)$/;
@@ -833,6 +888,7 @@
   function openDrawer(id) {
     curId = id; const s = songById(id); if (!s) return;
     drawer.hidden = false; document.body.style.overflow = 'hidden';
+    $('#d-history').open = false; $('#d-hlist').innerHTML = '';
     fillDrawer(true);
     $('[data-close].btn', drawer).focus();
   }
