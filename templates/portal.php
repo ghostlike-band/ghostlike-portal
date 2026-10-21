@@ -21,6 +21,14 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 	<meta name="theme-color" content="#0A0B0A">
 	<title>Member-Portal · <?php echo esc_html( get_bloginfo( 'name' ) ); ?></title>
 	<link rel="icon" href="<?php echo esc_url( GLP_URL . 'assets/img/favicon.svg' ); ?>" type="image/svg+xml">
+	<link rel="icon" href="<?php echo esc_url( GLP_URL . 'assets/img/app/favicon-32.png' ); ?>" sizes="32x32" type="image/png">
+	<?php // Zum Home-Bildschirm: eigene App, die direkt im Portal startet ?>
+	<link rel="apple-touch-icon" href="<?php echo esc_url( GLP_URL . 'assets/img/app/apple-touch-icon.png' ); ?>">
+	<link rel="manifest" href="<?php echo esc_url( add_query_arg( 'glp_manifest', 1, glp_portal_url() ) ); ?>">
+	<meta name="apple-mobile-web-app-title" content="GL Portal">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black">
 	<?php foreach ( $css as $f ) : ?>
 		<link rel="stylesheet" href="<?php echo esc_url( GLP_URL . $f . '?ver=' . $v( $f ) ); ?>">
 	<?php endforeach; ?>

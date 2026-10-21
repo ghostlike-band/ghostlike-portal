@@ -23,6 +23,28 @@ add_action( 'template_redirect', function () {
 	if ( ! get_query_var( 'glp_portal' ) ) {
 		return;
 	}
+	// Web-App-Manifest fürs Portal (start_url = /portal/, damit die Home-Bildschirm-App direkt hier öffnet)
+	if ( isset( $_GET['glp_manifest'] ) ) {
+		$img = GLP_URL . 'assets/img/app/';
+		header( 'Content-Type: application/manifest+json; charset=utf-8' );
+		header( 'Cache-Control: public, max-age=86400' );
+		echo wp_json_encode( array(
+			'name'             => 'GHOSTLIKE Member-Portal',
+			'short_name'       => 'GL Portal',
+			'start_url'        => wp_make_link_relative( glp_portal_url() ),
+			'scope'            => wp_make_link_relative( glp_portal_url() ),
+			'display'          => 'standalone',
+			'background_color' => '#0A0B0A',
+			'theme_color'      => '#0A0B0A',
+			'icons'            => array(
+				array( 'src' => $img . 'icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any' ),
+				array( 'src' => $img . 'icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any' ),
+				array( 'src' => $img . 'icon-512-maskable.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'maskable' ),
+			),
+		), JSON_UNESCAPED_SLASHES );
+		exit;
+	}
+
 	nocache_headers();
 	header( 'X-Robots-Tag: noindex, nofollow', true );
 
