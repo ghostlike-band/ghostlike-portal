@@ -685,3 +685,5 @@ fieldset.feld { min-width: 0; min-inline-size: 0; }
 }
 .k-satz__sub { display: block; margin-top: 8px; font-family: var(--f-mono); font-stretch: normal; font-weight: 400; text-transform: none; font-size: 13px; color: var(--kalk); }
 .k-row.is-kasse .k-row__amount { color: var(--kalkweiss); }
+.pp-logo { width: 14px; height: 14px; margin-right: 7px; vertical-align: -2px; flex: none; }
+[data-k-pp] { display: inline-flex; align-items: center; }

@@ -29,9 +29,7 @@ add_action( 'admin_post_glp_cash', function () {
 	}
 
 	if ( ( $in['do'] ?? '' ) === 'delete' ) {
-		if ( $row->receipt ) {
-			@unlink( glp_audio_dir() . '/' . basename( $row->receipt ) );
-		}
+		glp_cash_remove_receipt( $row );
 		$wpdb->delete( glp_table( 'cash' ), array( 'id' => $row->id ) );
 		glp_log( 'Bandkasse (Backend): gelöscht – ' . $row->title . ' · ' . glp_cash_money( (int) $row->amount ) );
 		wp_safe_redirect( add_query_arg( 'm', rawurlencode( 'ok:„' . $row->title . '“ gelöscht.' ), $back ) );
@@ -57,12 +55,24 @@ add_action( 'admin_post_glp_cash', function () {
 
 	if ( $row ) {
 		$wpdb->update( glp_table( 'cash' ), $data, array( 'id' => $row->id ) );
+		$id = (int) $row->id;
 		glp_log( 'Bandkasse (Backend): geändert – ' . $data['title'] . ' · ' . glp_cash_money( $data['amount'] ) );
 		$msg = 'ok:„' . $data['title'] . '“ gespeichert.';
 	} else {
 		$wpdb->insert( glp_table( 'cash' ), $data + array( 'created_by' => get_current_user_id(), 'created_at' => current_time( 'mysql' ) ) );
+		$id = (int) $wpdb->insert_id;
 		glp_log( 'Bandkasse (Backend): neu – ' . $data['title'] . ' · ' . glp_cash_money( $data['amount'] ) );
 		$msg = 'ok:„' . $data['title'] . '“ angelegt.';
+	}
+	// Beleg anhängen, ersetzen oder entfernen
+	$saved = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . glp_table( 'cash' ) . ' WHERE id = %d', $id ) );
+	if ( ! empty( $_FILES['receipt']['name'] ) ) {
+		$ok = glp_cash_store_receipt( $saved, $_FILES['receipt'] );
+		if ( is_wp_error( $ok ) ) {
+			$msg = 'err:Gespeichert, aber der Beleg fehlt: ' . $ok->get_error_message();
+		}
+	} elseif ( ! empty( $in['receipt_remove'] ) ) {
+		glp_cash_remove_receipt( $saved );
 	}
 	wp_safe_redirect( add_query_arg( 'm', rawurlencode( $msg ), $back ) );
 	exit;
@@ -104,6 +114,7 @@ function glp_cash_admin_list() {
 	<h1 class="wp-heading-inline">Bandkasse</h1>
 	<a class="page-title-action" href="<?php echo esc_url( add_query_arg( 'edit', 'new', $base ) ); ?>">Eintrag hinzufügen</a>
 	<a class="page-title-action" href="<?php echo esc_url( add_query_arg( 'kasse_csv', 1, glp_portal_url() ) ); ?>">CSV exportieren</a>
+	<?php glp_reminder_box(); ?>
 	<p style="max-width:760px">Alle Einträge aus der Bandkasse im <a href="<?php echo esc_url( glp_portal_url() ); ?>#kasse" target="_blank">Portal ↗</a>. Hier kannst du versehentliche Einträge korrigieren oder löschen. Die offenen Beträge im Portal rechnen sich danach automatisch neu.</p>
 	<table class="widefat striped" style="max-width:1200px">
 		<thead><tr><th>Datum</th><th>Art</th><th>Wofür</th><th style="text-align:right">Betrag</th><th>Wer</th><th>Aufgeteilt auf</th><th>Status</th><th>Angelegt von</th><th></th></tr></thead>
@@ -119,7 +130,7 @@ function glp_cash_admin_list() {
 			<tr>
 				<td><?php echo esc_html( date_i18n( 'd.m.Y', strtotime( $b['date'] ) ) ); ?></td>
 				<td><?php echo esc_html( $kinds[ $b['kind'] ] ?? $b['kind'] ); ?></td>
-				<td><strong><?php echo esc_html( $b['title'] ); ?></strong><?php echo $b['note'] !== '' ? '<br><span class="description">' . esc_html( $b['note'] ) . '</span>' : ''; ?></td>
+				<td><strong><?php echo esc_html( $b['title'] ); ?></strong><?php echo $b['note'] !== '' ? '<br><span class="description">' . esc_html( $b['note'] ) . '</span>' : ''; ?><?php echo $b['receipt'] ? '<br><a href="' . esc_url( $b['receipt']['url'] ) . '" target="_blank">📎 Beleg</a>' : ''; ?></td>
 				<td style="text-align:right;white-space:nowrap"><?php echo esc_html( glp_cash_money( $b['amount'] ) ); ?></td>
 				<td><?php echo esc_html( $who ); ?></td>
 				<td><?php echo esc_html( $split_txt ); ?></td>
@@ -154,7 +165,7 @@ function glp_cash_admin_form( $b ) {
 	?>
 	<h1><?php echo $b ? 'Eintrag bearbeiten' : 'Eintrag hinzufügen'; ?></h1>
 	<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=ghostlike-cash' ) ); ?>">← Zurück zur Liste</a></p>
-	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
 		<?php wp_nonce_field( 'glp_cash' ); ?>
 		<input type="hidden" name="action" value="glp_cash"><input type="hidden" name="id" value="<?php echo (int) $d['id']; ?>">
 		<table class="form-table" role="presentation">
@@ -184,6 +195,13 @@ function glp_cash_admin_form( $b ) {
 				<option value="pending" <?php selected( $d['status'], 'pending' ); ?>>⏳ wartet auf Bestätigung</option>
 				<option value="rejected" <?php selected( $d['status'], 'rejected' ); ?>>✗ nicht angekommen</option>
 			</select></td></tr>
+			<tr><th><label for="c-receipt">Beleg</label></th><td>
+				<?php if ( ! empty( $d['receipt'] ) ) : ?>
+					<p><a href="<?php echo esc_url( $d['receipt']['url'] ); ?>" target="_blank"><?php echo esc_html( $d['receipt']['name'] ?: 'Beleg ansehen' ); ?> ↗</a>
+					<label style="margin-left:12px"><input type="checkbox" name="receipt_remove" value="1"> entfernen</label></p>
+				<?php endif; ?>
+				<input type="file" name="receipt" id="c-receipt" accept="image/*,.pdf,.heic">
+				<p class="description">Foto oder PDF (Rechnung, Quittung). <?php echo ! empty( $d['receipt'] ) ? 'Eine neue Datei ersetzt den bisherigen Beleg.' : ''; ?></p></td></tr>
 			<tr><th><label for="c-note">Notiz</label></th><td><textarea name="note" id="c-note" rows="2" class="large-text"><?php echo esc_textarea( $d['note'] ); ?></textarea></td></tr>
 		</table>
 		<?php submit_button( $b ? 'Änderungen speichern' : 'Eintrag anlegen' ); ?>

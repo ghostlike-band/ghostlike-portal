@@ -430,22 +430,35 @@ function glp_rest_cash_receipt( WP_REST_Request $req ) {
 	if ( ! glp_cash_can_edit( $row ) ) {
 		return glp_err( 'Belege ändern können nur, wer die Buchung angelegt hat, und Admins.' );
 	}
+	$ok = glp_cash_store_receipt( $row, $f );
+	return is_wp_error( $ok ) ? glp_err( $ok->get_error_message() ) : glp_ok( array( 'ok' => true ) );
+}
+
+/** Hochgeladene Datei als Beleg an eine Buchung hängen (ersetzt einen alten Beleg). Portal und Backend. */
+function glp_cash_store_receipt( $row, $f ) {
+	global $wpdb;
 	if ( ! $f || ! empty( $f['error'] ) || ! is_uploaded_file( $f['tmp_name'] ) ) {
-		return glp_err( 'Upload fehlgeschlagen.' );
+		return new WP_Error( 'upload', 'Upload fehlgeschlagen.' );
 	}
 	$ext = strtolower( pathinfo( (string) $f['name'], PATHINFO_EXTENSION ) );
 	if ( ! isset( GLP_RECEIPT_TYPES[ $ext ] ) ) {
-		return glp_err( 'Bitte ein Foto (JPG, PNG, HEIC) oder PDF hochladen.' );
+		return new WP_Error( 'type', 'Bitte ein Foto (JPG, PNG, HEIC) oder PDF hochladen.' );
 	}
 	$file = 'beleg-' . wp_generate_password( 24, false ) . '.' . $ext;
 	if ( ! @move_uploaded_file( $f['tmp_name'], glp_audio_dir() . '/' . $file ) ) {
-		return glp_err( 'Beleg konnte nicht gespeichert werden.', 500 );
+		return new WP_Error( 'save', 'Beleg konnte nicht gespeichert werden.' );
 	}
+	glp_cash_remove_receipt( $row );
+	$wpdb->update( glp_table( 'cash' ), array( 'receipt' => $file, 'receipt_name' => mb_substr( sanitize_file_name( (string) $f['name'] ), 0, 190 ) ), array( 'id' => $row->id ) );
+	return true;
+}
+
+function glp_cash_remove_receipt( $row ) {
+	global $wpdb;
 	if ( $row->receipt ) {
 		@unlink( glp_audio_dir() . '/' . basename( $row->receipt ) );
+		$wpdb->update( glp_table( 'cash' ), array( 'receipt' => '', 'receipt_name' => '' ), array( 'id' => $row->id ) );
 	}
-	$wpdb->update( glp_table( 'cash' ), array( 'receipt' => $file, 'receipt_name' => mb_substr( sanitize_file_name( (string) $f['name'] ), 0, 190 ) ), array( 'id' => $row->id ) );
-	return glp_ok( array( 'ok' => true ) );
 }
 
 /* ================= BELEG ANZEIGEN & CSV ================= */

@@ -1002,6 +1002,7 @@
   const whoAv = (id) => (id ? av(who(id)) : '<span class="avatar avatar--klein avatar--kasse" title="Bandkasse">€</span>');
   const paypalUrl = (id, cents) => { const pp = member(id).paypal; return pp ? `https://www.paypal.me/${encodeURIComponent(pp)}/${(cents / 100).toFixed(2)}EUR` : ''; };
   const short = (d) => fmt(d, { day: '2-digit', month: '2-digit' });
+  const PP_LOGO = '<svg class="pp-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.016 19.198h-4.2a.562.562 0 0 1-.555-.65L5.093.584A.692.692 0 0 1 5.776 0h7.222c3.417 0 5.904 2.488 5.846 5.5-.006.25-.027.5-.066.747A6.794 6.794 0 0 1 12.071 12H8.743a.69.69 0 0 0-.682.583l-.325 2.056-.013.083-.692 4.39-.015.087zM19.79 6.142c-.01.087-.01.175-.023.261a7.76 7.76 0 0 1-7.695 6.598H9.007l-.283 1.795-.013.083-.692 4.39-.134.843-.014.088H6.86l-.497 3.15a.562.562 0 0 0 .555.65h3.612c.34 0 .63-.249.683-.585l.952-6.031a.692.692 0 0 1 .683-.584h2.126a6.793 6.793 0 0 0 6.707-5.752c.306-1.95-.466-3.744-1.89-4.906z"/></svg>';
 
   async function loadCash() {
     try {
@@ -1047,6 +1048,15 @@
     tipp.hidden = !!S.me.paypal || !get.length;
     tipp.innerHTML = 'Tipp: Trag unter <button class="link" data-goto="profil">Mein Profil</button> deinen PayPal.me-Namen ein, dann können dir die anderen mit einem Klick senden.';
 
+    // Bestätigte Zahlungen an mich
+    const recv = K.items.filter((b) => b.kind === 'move' && b.status === 'ok' && b.to === me);
+    $('#k-recv-box').hidden = !recv.length;
+    $('#k-recv-n').textContent = recv.length ? `(${recv.length} · ${euro(recv.reduce((a, b) => a + b.amount, 0))})` : '';
+    $('#k-recv').innerHTML = recv.map((b) => `<li class="k-v k-v--in">
+        <span class="meta">${esc(short(b.date))}</span>
+        <span class="k-v__main"><span class="label">von ${esc(who(b.from))}</span><span class="meta meta--hell">${b.note ? esc(b.note) + ' · ' : ''}✓ bestätigt</span></span>
+        <b>+${euro(b.amount)}</b><span></span></li>`).join('');
+
     renderVerlauf();
   }
 
@@ -1063,7 +1073,7 @@
     else if (mode === 'get') btn = `<button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="">Erhalten</button>`;
     else btn = `<button type="button" class="link meta" data-k-settle-i="${i}" data-method="">bezahlt?</button>`;
     const payBox = mode === 'pay' && d.creditor ? `<div class="k-row__pay" hidden>
-        ${pp ? `<a class="btn btn--klein btn--patina" href="${esc(pp)}" target="_blank" rel="noopener" data-k-pp>Mit PayPal senden ↗</a>` : d.creditor ? `<span class="meta meta--hell">${esc(who(d.creditor))} hat keinen PayPal-Namen im Profil.</span>` : ''}
+        ${pp ? `<a class="btn btn--klein btn--patina" href="${esc(pp)}" target="_blank" rel="noopener" data-k-pp>${PP_LOGO}Mit PayPal senden ↗</a>` : d.creditor ? `<span class="meta meta--hell">${esc(who(d.creditor))} hat keinen PayPal-Namen im Profil.</span>` : ''}
         <button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="Bar">${d.creditor ? 'Bar gegeben' : 'In die Kasse gelegt'}</button>
         <p class="k-row__pp meta" hidden>Fertig bei PayPal? <button type="button" class="btn btn--klein btn--patina" data-k-settle-i="${i}" data-method="PayPal">✓ Ja, bezahlt</button></p>
       </div>` : '';

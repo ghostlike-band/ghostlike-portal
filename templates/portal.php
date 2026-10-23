@@ -337,6 +337,10 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<ul class="k-rows" id="k-mine"></ul>
 			<p class="klein k-tipp" id="k-tipp" hidden></p>
 
+			<details class="k-more" id="k-recv-box" hidden>
+				<summary class="meta">Erhaltene Zahlungen <span id="k-recv-n"></span> ▾</summary>
+				<ul class="k-verlauf" id="k-recv"></ul>
+			</details>
 			<details class="k-more">
 				<summary class="meta">Offene Beträge der anderen <span id="k-others-n"></span> ▾</summary>
 				<ul class="k-rows" id="k-others"></ul>
