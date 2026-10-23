@@ -476,3 +476,46 @@ textarea.lyrics { font-family: var(--f-mono); font-size: 13px; line-height: 1.6;
   .cal__info { gap: 6px; }
   .cal li > :last-child { grid-column: auto; }
 }
+
+/* ---------- Bandkasse ---------- */
+.kpis--kasse { margin-bottom: 18px; }
+.kpis--kasse b.is-neg { color: #d9776b; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.kasse-form__hint { color: var(--akzent); font-size: 13px; margin: 0; min-height: 1.2em; }
+.kasse-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; margin: 0 0 22px; }
+.saldo, .kat, .buchungen { list-style: none; margin: 0; padding: 0; width: 100%; }
+.saldo li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--linie); }
+.saldo li > span { display: grid; gap: 2px; }
+.saldo li.is-plus b { color: var(--akzent); }
+.saldo li.is-minus b { color: #d9776b; }
+.kat li { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--linie); }
+.kat .bar { height: 6px; }
+.kat b { font-family: var(--f-mono); font-weight: 400; font-size: 12px; color: var(--kalkweiss); }
+.kasse-filter select, .kasse-filter input[type=search] { background: var(--schwarz); border: 1px solid var(--linie-stark); color: var(--kalkweiss); padding: 8px 10px; }
+.buchungen { border-top: 1px solid var(--linie); }
+.buchung { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--linie); }
+.buchung__main { display: grid; gap: 3px; min-width: 0; }
+.buchung__main .label { font-size: 14px; }
+.buchung__amount { font-family: var(--f-display); font-stretch: 112%; font-weight: 800; font-size: 16px; color: var(--kalkweiss); white-space: nowrap; }
+.buchung--in .buchung__amount, .buchung--fee .buchung__amount { color: var(--akzent); }
+.buchung--out .buchung__amount { color: #d9776b; }
+.buchung--move .buchung__amount { color: var(--kalk); }
+.buchung__tools { display: flex; gap: 10px; }
+@media (max-width: 900px) { .kasse-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .buchung { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .buchung__date { grid-column: 1 / -1; }
+  .buchung__tools { grid-column: 1 / -1; }
+  .kat li { grid-template-columns: 110px minmax(0, 1fr) auto; }
+  .saldo li { grid-template-columns: auto minmax(0, 1fr); }
+  .saldo li .btn { grid-column: 2; justify-self: start; }
+}
+.kasse-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.kasse-form .feld, .kasse-form input, .kasse-form select, .kasse-form textarea { min-width: 0; max-width: 100%; }
+@media (max-width: 600px) {
+  .kasse-form { grid-template-columns: minmax(0, 1fr); }
+  .kasse-form .feld--breit { grid-column: auto; }
+  .kpis--kasse .kpi b { font-size: 22px; }
+}
+fieldset.feld { min-width: 0; min-inline-size: 0; }
+.who-pick label { position: relative; }

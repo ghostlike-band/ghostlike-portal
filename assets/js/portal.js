@@ -94,6 +94,7 @@
     try { sessionStorage.setItem('glp-view', view); } catch (e) {}
     if (history.replaceState) history.replaceState(null, '', '#' + view);
     scrollTo(0, 0);
+    if (view === 'kasse' && typeof loadCash === 'function') loadCash();
   }
   $$('.side__nav button').forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
   document.addEventListener('click', (e) => { const g = e.target.closest('[data-goto]'); if (g) show(g.dataset.goto); });
@@ -990,6 +991,164 @@
     catch (err) { toast(err.message); }
   });
 
+  /* ================= BANDKASSE ================= */
+  const K = { items: [], cash: 0, balances: {}, fees: {}, categories: {}, kind: 'out', editing: null, loaded: false };
+  const euro = (c) => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const parseEuro = (s) => { const v = parseFloat(String(s).replace(/\s|€/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return isFinite(v) ? Math.round(v * 100) : 0; };
+  const who = (id) => (id ? ((S.members.find((m) => m.id === id) || {}).name || 'Ehemalig') : 'Bandkasse');
+  const KIND = { out: 'Ausgabe', in: 'Einnahme', move: 'Ausgleich', fee: 'Beitrag' };
+
+  async function loadCash() {
+    try {
+      const r = await api('cash');
+      Object.assign(K, { items: r.items, cash: r.cash, balances: r.balances || {}, fees: r.fees || {}, categories: r.categories, loaded: true });
+      if (Array.isArray(K.balances)) K.balances = {};
+      renderCash();
+    } catch (err) { toast(err.message); }
+  }
+
+  function renderCash() {
+    const year = $('#k-f-year').value || String(new Date().getFullYear());
+    // Filter-Auswahl befüllen
+    const years = [...new Set(K.items.map((b) => b.date.slice(0, 4)).concat(String(new Date().getFullYear())))].sort().reverse();
+    $('#k-f-year').innerHTML = years.map((y) => `<option ${y === year ? 'selected' : ''}>${y}</option>`).join('') + `<option value="alle" ${year === 'alle' ? 'selected' : ''}>Alle Jahre</option>`;
+    if ($('#k-f-cat').options.length <= 1) $('#k-f-cat').innerHTML += Object.entries(K.categories).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+    if ($('#k-f-who').options.length <= 1) $('#k-f-who').innerHTML += S.members.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+    $$('.k-year').forEach((e) => { e.textContent = year === 'alle' ? 'gesamt' : year; });
+
+    const inYear = K.items.filter((b) => year === 'alle' || b.date.startsWith(year));
+    const sum = (list, kinds) => list.filter((b) => kinds.includes(b.kind)).reduce((a, b) => a + b.amount, 0);
+    $('#k-cash').textContent = euro(K.cash);
+    $('#k-cash').classList.toggle('is-neg', K.cash < 0);
+    $('#k-in').textContent = euro(sum(inYear, ['in', 'fee']));
+    $('#k-out').textContent = euro(sum(inYear, ['out']));
+    $('#k-open').textContent = euro(Object.values(K.balances).filter((v) => v > 0).reduce((a, v) => a + v, 0));
+
+    // Salden
+    $('#k-saldo').innerHTML = S.members.map((m) => {
+      const v = K.balances[m.id] || 0, fee = K.fees[m.id] || 0;
+      const txt = v > 0 ? `bekommt <b>${euro(v)}</b>` : v < 0 ? `zahlt <b>${euro(-v)}</b>` : 'ausgeglichen ✓';
+      return `<li class="${v > 0 ? 'is-plus' : v < 0 ? 'is-minus' : ''}">${av(m.name)}<span><span class="label">${esc(m.name)}</span><span class="meta">${txt}${fee ? ' · Beiträge ' + euro(fee) : ''}</span></span>
+        ${v ? `<button class="btn btn--klein" data-k-settle="${m.id}">Ausgleich buchen</button>` : ''}</li>`;
+    }).join('');
+
+    // Kategorien (Ausgaben im Jahr)
+    const byCat = {};
+    inYear.filter((b) => b.kind === 'out').forEach((b) => { byCat[b.category] = (byCat[b.category] || 0) + b.amount; });
+    const max = Math.max(1, ...Object.values(byCat));
+    $('#k-cats').innerHTML = Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li><span class="meta">${esc(K.categories[k] || 'Sonstiges')}</span><span class="bar"><i style="width:${Math.round((v / max) * 100)}%"></i></span><b>${euro(v)}</b></li>`).join('') || '<li class="leer">Noch keine Ausgaben in diesem Zeitraum.</li>';
+
+    // Liste
+    const cat = $('#k-f-cat').value, wid = +$('#k-f-who').value, q = $('#k-f-q').value.trim().toLowerCase();
+    const list = inYear.filter((b) => (!cat || b.category === cat) && (!wid || b.from === wid || b.to === wid || b.split.includes(wid)) && (!q || (b.title + ' ' + b.note).toLowerCase().includes(q)));
+    $('#k-list').innerHTML = list.map((b) => {
+      const sign = b.kind === 'out' ? '−' : b.kind === 'move' ? '' : '+';
+      const detail = b.kind === 'out' ? (b.from ? `ausgelegt von ${esc(who(b.from))}` : 'aus der Bandkasse')
+        : b.kind === 'in' ? (b.from ? `Geld liegt bei ${esc(who(b.from))}` : 'in die Bandkasse')
+        : b.kind === 'move' ? `${esc(who(b.from))} → ${esc(who(b.to))}` : `von ${esc(who(b.from))}`;
+      const split = b.split.length ? ` · getragen von ${b.split.map((id) => esc(who(id))).join(', ')}` : '';
+      const mine = S.me.admin || b.by === S.me.id;
+      return `<li class="buchung buchung--${b.kind}">
+        <span class="buchung__date meta">${esc(fmt(b.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span>
+        <span class="buchung__main"><span class="label">${esc(b.title)}</span>
+          <span class="meta">${esc(KIND[b.kind])}${b.category && b.kind !== 'move' ? ' · ' + esc(K.categories[b.category] || '') : ''} · ${detail}${split}</span>
+          ${b.note ? `<span class="meta meta--hell">${esc(b.note)}</span>` : ''}</span>
+        <span class="buchung__amount">${sign}${euro(b.amount)}</span>
+        <span class="buchung__tools">${b.receipt ? `<a class="link meta" href="${esc(b.receipt.url)}" target="_blank" rel="noopener" title="${esc(b.receipt.name)}">Beleg ↗</a>` : ''}${mine ? `<button class="link meta" data-k-edit="${b.id}">✎</button>` : ''}</span>
+      </li>`;
+    }).join('') || '<li class="leer">Keine Buchungen in dieser Auswahl.</li>';
+  }
+
+  // Formular
+  const personOpts = (sel) => `<option value="0" ${!sel ? 'selected' : ''}>Bandkasse</option>` + S.members.map((m) => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+  function setKind(kind) {
+    K.kind = kind;
+    $$('#k-kind [data-kind]').forEach((b) => b.classList.toggle('is-on', b.dataset.kind === kind));
+    $('#k-from-label').textContent = { out: 'Bezahlt von', in: 'Geld liegt bei', move: 'Von', fee: 'Wer zahlt ein?' }[kind];
+    $('#k-to-box').hidden = kind !== 'move';
+    $('#k-cat-box').hidden = kind === 'move' || kind === 'fee';
+    $('#k-split-box').hidden = kind === 'move' || kind === 'fee';
+    $('#k-split-label').textContent = kind === 'in' ? 'Wem gehört das Geld?' : 'Wer trägt die Kosten?';
+    $('#k-receipt-box').hidden = kind === 'move' || kind === 'fee';
+    if (kind === 'fee' && +$('#k-from').value === 0) $('#k-from').value = String(S.me.id);
+    updateHint();
+  }
+  function updateHint() {
+    const a = parseEuro($('#k-amount').value), from = +$('#k-from').value, to = +$('#k-to').value;
+    const split = $$('#k-split input:checked').map((i) => +i.value), e = euro(a || 0);
+    let t = '';
+    if (K.kind === 'out') t = from ? `${who(from)} hat ${e} ausgelegt und bekommt ${split.length ? 'das von ' + split.map(who).join(', ') : 'es von der Band'} zurück.` : `${e} gehen aus der Bandkasse${split.length ? ', getragen von ' + split.map(who).join(', ') : ''}.`;
+    if (K.kind === 'in') t = from ? `${who(from)} hat ${e} bei sich und schuldet es ${split.length ? split.map(who).join(', ') : 'der Band'}.` : `${e} kommen in die Bandkasse${split.length ? ' und gehören ' + split.map(who).join(', ') : ''}.`;
+    if (K.kind === 'move') t = `${from ? who(from) : 'Die Bandkasse'} gibt ${e} an ${to ? who(to) : 'die Bandkasse'}, das gleicht die Salden aus.`;
+    if (K.kind === 'fee') t = `${who(from)} zahlt ${e} als Beitrag in die Bandkasse ein.`;
+    $('#k-hint').textContent = t;
+  }
+  function openCashForm(b, preset) {
+    K.editing = b || null;
+    const f = $('#k-form'); f.reset();
+    $('#k-cat').innerHTML = Object.entries(K.categories).filter(([k]) => k !== 'beitrag').map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+    const d = b || preset || {};
+    $('#k-from').innerHTML = personOpts(d.from || 0);
+    $('#k-to').innerHTML = personOpts(d.to || 0);
+    const split = new Set(d.split || []);
+    $('#k-split').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${m.id}" ${split.has(m.id) ? 'checked' : ''}><span>${esc(m.name)}</span></label>`).join('');
+    $('#k-amount').value = d.amount ? (d.amount / 100).toFixed(2).replace('.', ',') : '';
+    $('#k-date').value = d.date || new Date().toISOString().slice(0, 10);
+    $('#k-title').value = d.title || '';
+    if (d.category) $('#k-cat').value = d.category;
+    $('#k-note').value = d.note || '';
+    $('#k-delete').hidden = !b;
+    $('#k-save').textContent = b ? 'Änderung speichern' : 'Buchung speichern';
+    setKind(d.kind || 'out');
+    f.hidden = false;
+    f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#k-amount').focus({ preventScroll: true });
+  }
+  $('#k-new').addEventListener('click', () => openCashForm(null));
+  $('#k-cancel').addEventListener('click', () => { $('#k-form').hidden = true; K.editing = null; });
+  $('#k-kind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setKind(b.dataset.kind); });
+  $('#k-form').addEventListener('input', updateHint);
+  $('#k-form').addEventListener('change', updateHint);
+  $('#k-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+      kind: K.kind, amount: (parseEuro($('#k-amount').value) / 100).toFixed(2), date: $('#k-date').value, title: $('#k-title').value.trim(),
+      category: $('#k-cat').value, from: +$('#k-from').value, to: +$('#k-to').value, note: $('#k-note').value.trim(),
+      split: K.kind === 'move' || K.kind === 'fee' ? [] : $$('#k-split input:checked').map((i) => +i.value),
+    };
+    const btn = $('#k-save'); btn.disabled = true;
+    try {
+      const r = K.editing ? await api('cash/' + K.editing.id, { method: 'POST', body }) : await api('cash', { method: 'POST', body });
+      const file = $('#k-receipt').files[0];
+      if (file) {
+        const fd = new FormData(); fd.append('file', file);
+        const up = await fetch(CFG.rest + 'cash/' + r.id + '/receipt', { method: 'POST', headers: { 'X-WP-Nonce': CFG.nonce }, body: fd, credentials: 'same-origin' });
+        if (!up.ok) toast((await up.json().catch(() => ({}))).message || 'Beleg konnte nicht hochgeladen werden');
+      }
+      $('#k-form').hidden = true; K.editing = null;
+      await loadCash(); toast('Gebucht ✓');
+    } catch (err) { toast(err.message); }
+    btn.disabled = false;
+  });
+  $('#k-delete').addEventListener('click', async () => {
+    if (!K.editing || !confirm(`„${K.editing.title}“ (${euro(K.editing.amount)}) wirklich löschen?`)) return;
+    try { await api('cash/' + K.editing.id, { method: 'DELETE' }); $('#k-form').hidden = true; K.editing = null; await loadCash(); toast('Buchung gelöscht'); }
+    catch (err) { toast(err.message); }
+  });
+  document.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-k-edit]');
+    if (ed) { const b = K.items.find((x) => x.id === +ed.dataset.kEdit); if (b) openCashForm(b); return; }
+    const st = e.target.closest('[data-k-settle]');
+    if (st) {
+      const id = +st.dataset.kSettle, v = K.balances[id] || 0;
+      openCashForm(null, v > 0
+        ? { kind: 'move', from: 0, to: id, amount: v, title: `Ausgleich an ${who(id)}` }
+        : { kind: 'move', from: id, to: 0, amount: -v, title: `Ausgleich von ${who(id)}` });
+    }
+  });
+  ['#k-f-year', '#k-f-cat', '#k-f-who'].forEach((s) => $(s).addEventListener('change', renderCash));
+  $('#k-f-q').addEventListener('input', renderCash);
+
   /* ================= PROFIL ================= */
   function renderProfile(force) {
     const me = S.me;
@@ -1064,7 +1223,7 @@
       $('#loading').hidden = true;
       setStudioView(studioView);
       let view = (location.hash || '').slice(1);
-      if (!['home', 'kalender', 'studio', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
+      if (!['home', 'kalender', 'studio', 'kasse', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
       show(view);
       // Link aus der Mail: /portal/?song=7#studio → Song direkt öffnen
       const sid = +new URLSearchParams(location.search).get('song');

@@ -109,6 +109,27 @@ function glp_install() {
 		KEY created_at (created_at)
 	) $c;" );
 
+	// Bandkasse: Buchungen (Beträge in Cent)
+	dbDelta( "CREATE TABLE " . glp_table( 'cash' ) . " (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		kind varchar(10) NOT NULL DEFAULT 'out',
+		amount int(11) NOT NULL DEFAULT 0,
+		booked_on date NOT NULL,
+		title varchar(190) NOT NULL DEFAULT '',
+		category varchar(40) NOT NULL DEFAULT '',
+		from_id bigint(20) NOT NULL DEFAULT 0,
+		to_id bigint(20) NOT NULL DEFAULT 0,
+		split longtext NULL,
+		note text NULL,
+		receipt varchar(190) NOT NULL DEFAULT '',
+		receipt_name varchar(190) NOT NULL DEFAULT '',
+		created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+		created_at datetime NOT NULL,
+		updated_at datetime NULL,
+		PRIMARY KEY  (id),
+		KEY booked_on (booked_on)
+	) $c;" );
+
 	glp_seed_songs();
 	glp_history_backfill();
 	update_option( 'glp_db_version', GLP_DB_VERSION );

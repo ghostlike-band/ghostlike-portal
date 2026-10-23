@@ -84,8 +84,9 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<button data-view="home" class="is-active"><span class="meta">01</span>Übersicht</button>
 			<button data-view="kalender"><span class="meta">02</span>Kalender</button>
 			<button data-view="studio"><span class="meta">03</span>Studio</button>
-			<button data-view="pool"><span class="meta">04</span>Pressepool</button>
-			<button data-view="pr"><span class="meta">05</span>PR</button>
+			<button data-view="kasse"><span class="meta">04</span>Bandkasse</button>
+			<button data-view="pool"><span class="meta">05</span>Pressepool</button>
+			<button data-view="pr"><span class="meta">06</span>PR</button>
 		</nav>
 		<div class="side__user">
 			<button class="avatar avatar--knopf" id="me-avatar" data-goto="profil" title="Mein Profil" aria-label="Mein Profil"></button>
@@ -291,6 +292,74 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<p class="klein" id="pf-meta"></p>
 				</article>
 			</div>
+		</section>
+
+		<!-- ===== BANDKASSE ===== -->
+		<section class="view" data-view="kasse" hidden>
+			<header class="view__head view__head--row">
+				<div><span class="meta">04 — Finanzen</span><h1 class="display-l">Band&shy;kasse</h1></div>
+				<div class="actions">
+					<a class="btn btn--klein" id="k-csv" href="<?php echo esc_url( add_query_arg( 'kasse_csv', 1, glp_portal_url() ) ); ?>">CSV-Export ↓</a>
+					<button class="btn btn--klein btn--patina" id="k-new">+ Buchung</button>
+				</div>
+			</header>
+			<div class="kpis kpis--kasse">
+				<div class="kpi"><span class="meta">Kassenstand</span><b id="k-cash">–</b></div>
+				<div class="kpi"><span class="meta">Einnahmen <span class="k-year"></span></span><b id="k-in">–</b></div>
+				<div class="kpi"><span class="meta">Ausgaben <span class="k-year"></span></span><b id="k-out">–</b></div>
+				<div class="kpi"><span class="meta">Offen an Mitglieder</span><b id="k-open">–</b></div>
+			</div>
+
+			<form class="panel kasse-form" id="k-form" hidden>
+				<div class="feld feld--breit"><span class="meta">Art</span>
+					<div class="seg" id="k-kind">
+						<button type="button" class="chip is-on" data-kind="out">Ausgabe</button>
+						<button type="button" class="chip" data-kind="in">Einnahme</button>
+						<button type="button" class="chip" data-kind="move">Ausgleich</button>
+						<button type="button" class="chip" data-kind="fee">Beitrag</button>
+					</div>
+				</div>
+				<label class="feld"><span class="meta">Betrag (€)</span><input id="k-amount" inputmode="decimal" placeholder="0,00" required autocomplete="off"></label>
+				<label class="feld"><span class="meta">Datum</span><input type="date" id="k-date" required></label>
+				<label class="feld feld--breit"><span class="meta">Wofür?</span><input id="k-title" maxlength="190" placeholder="z. B. Mixing Mikrofilet, Sprit Konzert Ulm"></label>
+				<label class="feld" id="k-cat-box"><span class="meta">Kategorie</span><select id="k-cat"></select></label>
+				<label class="feld"><span class="meta" id="k-from-label">Bezahlt von</span><select id="k-from"></select></label>
+				<label class="feld" id="k-to-box" hidden><span class="meta">An</span><select id="k-to"></select></label>
+				<fieldset class="feld feld--breit" id="k-split-box"><legend class="meta" id="k-split-label">Wer trägt die Kosten?</legend>
+					<div class="who-pick" id="k-split"></div>
+					<span class="meta meta--hell">Nichts angehakt = die Band trägt es gemeinsam.</span>
+				</fieldset>
+				<p class="feld--breit kasse-form__hint" id="k-hint"></p>
+				<label class="feld feld--breit" id="k-receipt-box"><span class="meta">Beleg (Foto oder PDF, optional)</span><input type="file" id="k-receipt" accept="image/*,.pdf,.heic"></label>
+				<label class="feld feld--breit"><span class="meta">Notiz (optional)</span><textarea id="k-note" rows="2"></textarea></label>
+				<div class="feld--breit actions">
+					<button class="btn btn--patina" type="submit" id="k-save">Buchung speichern</button>
+					<button class="btn" type="button" id="k-cancel">Abbrechen</button>
+					<button class="btn btn--klein btn--gefahr" type="button" id="k-delete" hidden>Löschen</button>
+				</div>
+			</form>
+
+			<div class="kasse-grid">
+				<article class="card">
+					<div class="card__row"><span class="meta">Salden · wer bekommt, wer zahlt</span></div>
+					<ul class="saldo" id="k-saldo"></ul>
+					<p class="klein">Positiv: die Band schuldet dir Geld (z. B. weil du etwas ausgelegt hast). Negativ: du schuldest der Band etwas (z. B. Merch-Geld bei dir).</p>
+				</article>
+				<article class="card">
+					<div class="card__row"><span class="meta">Ausgaben nach Kategorie · <span class="k-year"></span></span></div>
+					<ul class="kat" id="k-cats"></ul>
+				</article>
+			</div>
+
+			<div class="toolbar kasse-filter">
+				<div class="filter">
+					<select id="k-f-year" aria-label="Jahr"></select>
+					<select id="k-f-cat" aria-label="Kategorie"><option value="">Alle Kategorien</option></select>
+					<select id="k-f-who" aria-label="Person"><option value="">Alle Personen</option></select>
+				</div>
+				<input type="search" id="k-f-q" placeholder="Suchen …" aria-label="Buchungen durchsuchen">
+			</div>
+			<ol class="buchungen" id="k-list"></ol>
 		</section>
 
 		<!-- ===== PRESSEPOOL ===== -->
