@@ -296,82 +296,56 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 		</section>
 
 		<!-- ===== BANDKASSE ===== -->
-		<section class="view" data-view="kasse" hidden>
+		<section class="view kasse" data-view="kasse" hidden>
 			<header class="view__head view__head--row">
-				<div><span class="meta">04 — Finanzen</span><h1 class="display-l">Band&shy;kasse</h1></div>
+				<div><span class="meta">04 — Geld</span><h1 class="display-l">Band&shy;kasse</h1></div>
 				<div class="actions">
-					<a class="btn btn--klein" id="k-csv" href="<?php echo esc_url( add_query_arg( 'kasse_csv', 1, glp_portal_url() ) ); ?>">CSV-Export ↓</a>
-					<button class="btn btn--klein btn--patina" id="k-new">+ Buchung</button>
+					<button class="btn btn--klein btn--patina" id="k-new-out">+ Ausgabe</button>
+					<button class="btn btn--klein" id="k-new-in">+ Einnahme</button>
 				</div>
 			</header>
-			<article class="card schulden">
-				<div class="mein-stand" id="k-me"></div>
-				<div class="k-confirm" id="k-confirm" hidden></div>
-				<div class="schulden__cols">
-					<section class="schulden__col"><h3 class="meta">Du zahlst</h3><ul class="pp-list" id="k-pay"></ul></section>
-					<section class="schulden__col"><h3 class="meta">Du bekommst</h3><ul class="pp-list" id="k-get"></ul></section>
-				</div>
-				<p class="klein schulden__tipp" id="k-tipp" hidden></p>
-				<details class="schulden__band"><summary class="meta" id="k-band-sum">Alle offenen Beträge in der Band ▾</summary><ul class="pp-list pp-list--band" id="k-debts"></ul></details>
-				<details class="schulden__band"><summary class="meta">Unterm Strich pro Person ▾</summary><ul class="saldo" id="k-saldo"></ul></details>
-			</article>
 
-			<div class="kpis kpis--kasse">
-				<div class="kpi"><span class="meta">Kassenstand</span><b id="k-cash">–</b></div>
-				<div class="kpi"><span class="meta">Einnahmen <span class="k-year"></span></span><b id="k-in">–</b></div>
-				<div class="kpi"><span class="meta">Ausgaben <span class="k-year"></span></span><b id="k-out">–</b></div>
-				<div class="kpi"><span class="meta">Offen an Mitglieder</span><b id="k-open">–</b></div>
+			<div class="k-top">
+				<p class="k-satz" id="k-satz"></p>
+				<p class="k-kasse meta" id="k-kasse"></p>
 			</div>
 
-			<form class="panel kasse-form" id="k-form" hidden>
-				<div class="feld feld--breit"><span class="meta">Art</span>
-					<div class="seg" id="k-kind">
-						<button type="button" class="chip is-on" data-kind="out">Ausgabe</button>
-						<button type="button" class="chip" data-kind="in">Einnahme</button>
-						<button type="button" class="chip" data-kind="move">Ausgleich</button>
-						<button type="button" class="chip" data-kind="fee">Beitrag</button>
-					</div>
-				</div>
+			<form class="panel k-form" id="k-form" hidden>
+				<p class="k-form__titel label" id="k-form-titel">Ausgabe eintragen</p>
 				<label class="feld"><span class="meta">Betrag (€)</span><input id="k-amount" inputmode="decimal" placeholder="0,00" required autocomplete="off"></label>
-				<label class="feld"><span class="meta">Datum</span><input type="date" id="k-date" required></label>
-				<label class="feld feld--breit"><span class="meta">Wofür?</span><input id="k-title" maxlength="190" placeholder="z. B. Mixing Mikrofilet, Sprit Konzert Ulm"></label>
-				<label class="feld" id="k-cat-box"><span class="meta">Kategorie</span><select id="k-cat"></select></label>
-				<label class="feld"><span class="meta" id="k-from-label">Bezahlt von</span><select id="k-from"></select></label>
-				<label class="feld" id="k-to-box" hidden><span class="meta">An</span><select id="k-to"></select></label>
-				<fieldset class="feld feld--breit" id="k-split-box"><legend class="meta" id="k-split-label">Wer trägt die Kosten?</legend>
-					<div class="seg" id="k-bear">
-						<button type="button" class="chip is-on" data-bear="all">Alle zu gleichen Teilen</button>
-						<button type="button" class="chip" data-bear="some">Nur bestimmte</button>
-						<button type="button" class="chip" data-bear="kasse">Bandkasse</button>
-					</div>
-					<div class="who-pick" id="k-split" hidden></div>
-				</fieldset>
-				<p class="feld--breit kasse-form__hint" id="k-hint"></p>
-				<label class="feld feld--breit" id="k-receipt-box"><span class="meta">Beleg (Foto oder PDF, optional)</span><input type="file" id="k-receipt" accept="image/*,.pdf,.heic"></label>
-				<label class="feld feld--breit"><span class="meta">Notiz (optional)</span><textarea id="k-note" rows="2"></textarea></label>
-				<div class="feld--breit actions">
-					<button class="btn btn--patina" type="submit" id="k-save">Buchung speichern</button>
+				<label class="feld"><span class="meta">Wofür?</span><input id="k-title" maxlength="190" required placeholder="z. B. Mixing Mikrofilet"></label>
+				<label class="feld"><span class="meta" id="k-from-label">Wer hat bezahlt?</span><select id="k-from"></select></label>
+				<details class="k-mehr" id="k-mehr">
+					<summary class="meta">Mehr Optionen ▾</summary>
+					<fieldset class="feld" id="k-split-box"><legend class="meta">Aufteilen auf</legend><div class="who-pick" id="k-split"></div></fieldset>
+					<label class="feld"><span class="meta">Datum</span><input type="date" id="k-date"></label>
+					<label class="feld"><span class="meta">Kategorie</span><select id="k-cat"></select></label>
+					<label class="feld"><span class="meta">Beleg (Foto oder PDF)</span><input type="file" id="k-receipt" accept="image/*,.pdf,.heic"></label>
+					<label class="feld"><span class="meta">Notiz</span><input id="k-note" maxlength="300"></label>
+				</details>
+				<p class="k-hint" id="k-hint"></p>
+				<div class="actions">
+					<button class="btn btn--patina" type="submit" id="k-save">Speichern</button>
 					<button class="btn" type="button" id="k-cancel">Abbrechen</button>
-					<button class="btn btn--klein btn--gefahr" type="button" id="k-delete" hidden>Löschen</button>
+					<button class="link meta k-del" type="button" id="k-delete" hidden>Löschen</button>
 				</div>
 			</form>
 
-			<div class="kasse-grid">
-				<article class="card">
-					<div class="card__row"><span class="meta">Ausgaben nach Kategorie · <span class="k-year"></span></span></div>
-					<ul class="kat" id="k-cats"></ul>
-				</article>
-			</div>
+			<div class="k-confirm" id="k-confirm" hidden></div>
 
-			<div class="toolbar kasse-filter">
-				<div class="filter">
-					<select id="k-f-year" aria-label="Jahr"></select>
-					<select id="k-f-cat" aria-label="Kategorie"><option value="">Alle Kategorien</option></select>
-					<select id="k-f-who" aria-label="Person"><option value="">Alle Personen</option></select>
-				</div>
-				<input type="search" id="k-f-q" placeholder="Suchen …" aria-label="Buchungen durchsuchen">
-			</div>
-			<ol class="buchungen" id="k-list"></ol>
+			<h2 class="meta k-h">Deine offenen Beträge</h2>
+			<ul class="k-rows" id="k-mine"></ul>
+			<p class="klein k-tipp" id="k-tipp" hidden></p>
+
+			<details class="k-more">
+				<summary class="meta">Offene Beträge der anderen <span id="k-others-n"></span> ▾</summary>
+				<ul class="k-rows" id="k-others"></ul>
+			</details>
+			<details class="k-more">
+				<summary class="meta">Verlauf · alle Einträge ▾</summary>
+				<ul class="k-verlauf" id="k-list"></ul>
+				<a class="link meta" href="<?php echo esc_url( add_query_arg( 'kasse_csv', 1, glp_portal_url() ) ); ?>">Als Tabelle exportieren (CSV) ↓</a>
+			</details>
 		</section>
 
 		<!-- ===== PRESSEPOOL ===== -->
