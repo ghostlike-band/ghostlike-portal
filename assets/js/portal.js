@@ -992,7 +992,7 @@
   });
 
   /* ================= BANDKASSE ================= */
-  const K = { items: [], cash: 0, balances: {}, fees: {}, categories: {}, kind: 'out', editing: null, loaded: false };
+  const K = { items: [], debts: [], cash: 0, balances: {}, fees: {}, categories: {}, kind: 'out', bear: 'all', scope: 'me', editing: null, loaded: false };
   const euro = (c) => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const parseEuro = (s) => { const v = parseFloat(String(s).replace(/\s|€/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return isFinite(v) ? Math.round(v * 100) : 0; };
   const who = (id) => (id ? ((S.members.find((m) => m.id === id) || {}).name || 'Ehemalig') : 'Bandkasse');
@@ -1001,7 +1001,7 @@
   async function loadCash() {
     try {
       const r = await api('cash');
-      Object.assign(K, { items: r.items, cash: r.cash, balances: r.balances || {}, fees: r.fees || {}, categories: r.categories, loaded: true });
+      Object.assign(K, { items: r.items, debts: r.debts || [], cash: r.cash, balances: r.balances || {}, fees: r.fees || {}, categories: r.categories, loaded: true });
       if (Array.isArray(K.balances)) K.balances = {};
       renderCash();
     } catch (err) { toast(err.message); }
@@ -1024,12 +1024,12 @@
     $('#k-out').textContent = euro(sum(inYear, ['out']));
     $('#k-open').textContent = euro(Object.values(K.balances).filter((v) => v > 0).reduce((a, v) => a + v, 0));
 
-    // Salden
+    renderDebts();
+    // Unterm Strich pro Person
     $('#k-saldo').innerHTML = S.members.map((m) => {
       const v = K.balances[m.id] || 0, fee = K.fees[m.id] || 0;
-      const txt = v > 0 ? `bekommt <b>${euro(v)}</b>` : v < 0 ? `zahlt <b>${euro(-v)}</b>` : 'ausgeglichen ✓';
-      return `<li class="${v > 0 ? 'is-plus' : v < 0 ? 'is-minus' : ''}">${av(m.name)}<span><span class="label">${esc(m.name)}</span><span class="meta">${txt}${fee ? ' · Beiträge ' + euro(fee) : ''}</span></span>
-        ${v ? `<button class="btn btn--klein" data-k-settle="${m.id}">Ausgleich buchen</button>` : ''}</li>`;
+      const txt = v > 0 ? `bekommt insgesamt <b>${euro(v)}</b>` : v < 0 ? `schuldet insgesamt <b>${euro(-v)}</b>` : 'ausgeglichen ✓';
+      return `<li class="${v > 0 ? 'is-plus' : v < 0 ? 'is-minus' : ''}">${av(m.name)}<span><span class="label">${esc(m.name)}</span><span class="meta">${txt}${fee ? ' · Beiträge ' + euro(fee) : ''}</span></span></li>`;
     }).join('');
 
     // Kategorien (Ausgaben im Jahr)
@@ -1059,6 +1059,48 @@
     }).join('') || '<li class="leer">Keine Buchungen in dieser Auswahl.</li>';
   }
 
+  // Wer schuldet wem – mit Begründung
+  const whoAv = (id) => (id ? av(who(id)) : '<span class="avatar avatar--klein avatar--kasse" title="Bandkasse">€</span>');
+  function renderDebts() {
+    const me = S.me.id;
+    const mineIn = K.debts.filter((d) => d.creditor === me), mineOut = K.debts.filter((d) => d.debtor === me);
+    const sumIn = mineIn.reduce((a, d) => a + d.amount, 0), sumOut = mineOut.reduce((a, d) => a + d.amount, 0);
+    $('#k-me').innerHTML = `<div class="schulden__kpi is-minus"><span class="meta">Du schuldest</span><b>${euro(sumOut)}</b></div>
+      <div class="schulden__kpi is-plus"><span class="meta">Dir schulden</span><b>${euro(sumIn)}</b></div>`;
+    const list = K.scope === 'me' ? K.debts.filter((d) => d.debtor === me || d.creditor === me) : K.debts;
+    $('#k-debts').innerHTML = list.map((d, i) => {
+      const iOwe = d.debtor === me, owedMe = d.creditor === me;
+      const head = iOwe ? `Du schuldest <b>${esc(who(d.creditor))}</b>` : owedMe ? `<b>${esc(who(d.debtor))}</b> schuldet dir` : `<b>${esc(who(d.debtor))}</b> schuldet <b>${esc(who(d.creditor))}</b>`;
+      return `<li class="schuld ${iOwe ? 'is-minus' : owedMe ? 'is-plus' : ''}">
+        <details>
+          <summary>${whoAv(d.debtor)}<span class="schuld__pfeil" aria-hidden="true">→</span>${whoAv(d.creditor)}
+            <span class="schuld__text">${head}</span><b class="schuld__betrag">${euro(d.amount)}</b><span class="schuld__chev" aria-hidden="true">▾</span></summary>
+          <ul class="schuld__items">${d.items.map((it) => `<li><span class="meta">${esc(fmt(it.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span>
+            <span><span class="label">${esc(it.title)}</span><span class="meta meta--hell">${esc(it.why)}</span></span>
+            <b class="${it.amount < 0 ? 'is-neg' : ''}">${it.amount < 0 ? '−' : '+'}${euro(Math.abs(it.amount))}</b></li>`).join('')}
+            <li class="schuld__summe"><span></span><span class="label">Offen</span><b>${euro(d.amount)}</b></li>
+          </ul>
+          <button type="button" class="btn btn--klein btn--patina" data-k-paid="${i}">Als bezahlt markieren</button>
+        </details>
+      </li>`;
+    }).join('') || `<li class="leer">${K.scope === 'me' ? 'Du bist mit allen quitt. 🤘' : 'Alle sind quitt. 🤘'}</li>`;
+    $('#k-debts').dataset.scope = K.scope;
+    K.shown = list;
+  }
+  document.addEventListener('click', async (e) => {
+    const sc = e.target.closest('[data-k-scope]');
+    if (sc) { K.scope = sc.dataset.kScope; $$('[data-k-scope]').forEach((b) => b.classList.toggle('is-on', b === sc)); renderDebts(); return; }
+    const pd = e.target.closest('[data-k-paid]');
+    if (pd) {
+      const d = K.shown[+pd.dataset.kPaid]; if (!d) return;
+      if (!confirm(`${who(d.debtor)} hat ${who(d.creditor)} ${euro(d.amount)} gegeben? Das wird als Ausgleich gebucht.`)) return;
+      try {
+        await api('cash', { method: 'POST', body: { kind: 'move', amount: (d.amount / 100).toFixed(2), date: new Date().toISOString().slice(0, 10), from: d.debtor, to: d.creditor, title: `Ausgleich ${who(d.debtor)} → ${who(d.creditor)}` } });
+        await loadCash(); toast('Als bezahlt gebucht ✓');
+      } catch (err) { toast(err.message); }
+    }
+  });
+
   // Formular
   const personOpts = (sel) => `<option value="0" ${!sel ? 'selected' : ''}>Bandkasse</option>` + S.members.map((m) => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
   function setKind(kind) {
@@ -1069,16 +1111,32 @@
     $('#k-cat-box').hidden = kind === 'move' || kind === 'fee';
     $('#k-split-box').hidden = kind === 'move' || kind === 'fee';
     $('#k-split-label').textContent = kind === 'in' ? 'Wem gehört das Geld?' : 'Wer trägt die Kosten?';
+    $('#k-bear [data-bear="kasse"]').textContent = kind === 'in' ? 'Der Bandkasse' : 'Bandkasse erstattet';
     $('#k-receipt-box').hidden = kind === 'move' || kind === 'fee';
     if (kind === 'fee' && +$('#k-from').value === 0) $('#k-from').value = String(S.me.id);
     updateHint();
   }
+  function setBear(b) {
+    K.bear = b;
+    $$('#k-bear [data-bear]').forEach((x) => x.classList.toggle('is-on', x.dataset.bear === b));
+    $('#k-split').hidden = b !== 'some';
+    updateHint();
+  }
+  $('#k-bear').addEventListener('click', (e) => { const b = e.target.closest('[data-bear]'); if (b) setBear(b.dataset.bear); });
+  const currentSplit = () => (K.bear === 'all' ? S.members.map((m) => m.id) : K.bear === 'some' ? $$('#k-split input:checked').map((i) => +i.value) : []);
   function updateHint() {
     const a = parseEuro($('#k-amount').value), from = +$('#k-from').value, to = +$('#k-to').value;
-    const split = $$('#k-split input:checked').map((i) => +i.value), e = euro(a || 0);
+    const split = currentSplit(), e = euro(a || 0), share = split.length ? euro(Math.floor((a || 0) / split.length)) : '';
+    const others = split.filter((id) => id !== from).map(who);
     let t = '';
-    if (K.kind === 'out') t = from ? `${who(from)} hat ${e} ausgelegt und bekommt ${split.length ? 'das von ' + split.map(who).join(', ') : 'es von der Band'} zurück.` : `${e} gehen aus der Bandkasse${split.length ? ', getragen von ' + split.map(who).join(', ') : ''}.`;
-    if (K.kind === 'in') t = from ? `${who(from)} hat ${e} bei sich und schuldet es ${split.length ? split.map(who).join(', ') : 'der Band'}.` : `${e} kommen in die Bandkasse${split.length ? ' und gehören ' + split.map(who).join(', ') : ''}.`;
+    if (K.kind === 'out') {
+      if (split.length) t = `${e} ÷ ${split.length} = ${share} pro Person. ${others.length ? others.join(', ') + (others.length > 1 ? ' schulden ' : ' schuldet ') + (from ? who(from) : 'der Bandkasse') + ' je ' + share + '.' : ''}`;
+      else t = from ? `${who(from)} hat ${e} ausgelegt, die Bandkasse erstattet das.` : `${e} gehen aus der Bandkasse, niemand schuldet etwas.`;
+    }
+    if (K.kind === 'in') {
+      if (split.length) t = `${e} ÷ ${split.length} = ${share} pro Person. ${from ? who(from) + ' hat das Geld und schuldet ' + others.join(', ') + ' je ' + share + '.' : 'Die Bandkasse schuldet ' + split.map(who).join(', ') + ' je ' + share + '.'}`;
+      else t = from ? `${who(from)} hat ${e} bei sich und schuldet es der Bandkasse.` : `${e} kommen in die Bandkasse.`;
+    }
     if (K.kind === 'move') t = `${from ? who(from) : 'Die Bandkasse'} gibt ${e} an ${to ? who(to) : 'die Bandkasse'}, das gleicht die Salden aus.`;
     if (K.kind === 'fee') t = `${who(from)} zahlt ${e} als Beitrag in die Bandkasse ein.`;
     $('#k-hint').textContent = t;
@@ -1087,11 +1145,13 @@
     K.editing = b || null;
     const f = $('#k-form'); f.reset();
     $('#k-cat').innerHTML = Object.entries(K.categories).filter(([k]) => k !== 'beitrag').map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
-    const d = b || preset || {};
+    const d = b || preset || { from: S.me.id }; // neue Ausgabe: meist hat man selbst bezahlt
     $('#k-from').innerHTML = personOpts(d.from || 0);
     $('#k-to').innerHTML = personOpts(d.to || 0);
     const split = new Set(d.split || []);
     $('#k-split').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${m.id}" ${split.has(m.id) ? 'checked' : ''}><span>${esc(m.name)}</span></label>`).join('');
+    const allIds = S.members.map((m) => m.id);
+    const bear = b ? (!split.size ? 'kasse' : (split.size === allIds.length && allIds.every((id) => split.has(id)) ? 'all' : 'some')) : ((d.kind || 'out') === 'in' ? 'kasse' : 'all');
     $('#k-amount').value = d.amount ? (d.amount / 100).toFixed(2).replace('.', ',') : '';
     $('#k-date').value = d.date || new Date().toISOString().slice(0, 10);
     $('#k-title').value = d.title || '';
@@ -1100,13 +1160,14 @@
     $('#k-delete').hidden = !b;
     $('#k-save').textContent = b ? 'Änderung speichern' : 'Buchung speichern';
     setKind(d.kind || 'out');
+    setBear(bear);
     f.hidden = false;
     f.scrollIntoView({ behavior: 'smooth', block: 'start' });
     $('#k-amount').focus({ preventScroll: true });
   }
   $('#k-new').addEventListener('click', () => openCashForm(null));
   $('#k-cancel').addEventListener('click', () => { $('#k-form').hidden = true; K.editing = null; });
-  $('#k-kind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setKind(b.dataset.kind); });
+  $('#k-kind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); if (!K.editing) { $('#k-from').value = String(['out', 'fee'].includes(b.dataset.kind) ? S.me.id : 0); setBear(b.dataset.kind === 'in' ? 'kasse' : 'all'); } });
   $('#k-form').addEventListener('input', updateHint);
   $('#k-form').addEventListener('change', updateHint);
   $('#k-form').addEventListener('submit', async (e) => {
@@ -1114,8 +1175,9 @@
     const body = {
       kind: K.kind, amount: (parseEuro($('#k-amount').value) / 100).toFixed(2), date: $('#k-date').value, title: $('#k-title').value.trim(),
       category: $('#k-cat').value, from: +$('#k-from').value, to: +$('#k-to').value, note: $('#k-note').value.trim(),
-      split: K.kind === 'move' || K.kind === 'fee' ? [] : $$('#k-split input:checked').map((i) => +i.value),
+      split: K.kind === 'move' || K.kind === 'fee' ? [] : currentSplit(),
     };
+    if (body.split.length === 0 && K.bear === 'some') { toast('Bitte mindestens eine Person anhaken'); return; }
     const btn = $('#k-save'); btn.disabled = true;
     try {
       const r = K.editing ? await api('cash/' + K.editing.id, { method: 'POST', body }) : await api('cash', { method: 'POST', body });

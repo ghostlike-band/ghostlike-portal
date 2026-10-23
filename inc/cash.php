@@ -100,6 +100,78 @@ function glp_cash_balances( $rows ) {
 	return array( 'cash' => $cash, 'balances' => (object) $bal, 'fees' => (object) $fees );
 }
 
+/**
+ * Wer schuldet wem? Paarweise, mit den Buchungen als Begründung.
+ * Knoten: Mitglieder-IDs und 0 = Bandkasse.
+ * Ergebnis: [{debtor, creditor, amount, items:[{id, date, title, amount, why}]}], amount > 0.
+ */
+function glp_cash_debts( $rows ) {
+	$edges = array(); // "a|b" => [ [id, date, title, cents (a schuldet b), why], … ]
+	$owe   = function ( $a, $b, $cents, $bk, $why ) use ( &$edges ) {
+		if ( $a === $b || ! $cents ) {
+			return;
+		}
+		$edges[ $a . '|' . $b ][] = array( 'id' => $bk['id'], 'date' => $bk['date'], 'title' => $bk['title'], 'amount' => $cents, 'why' => $why );
+	};
+	$name = fn( $id ) => $id ? glp_user_name( $id ) : 'Bandkasse';
+	foreach ( array_reverse( $rows ) as $b ) {
+		$a  = $b['amount'];
+		$eu = glp_cash_money( $a );
+		switch ( $b['kind'] ) {
+			case 'out':
+				if ( $b['split'] ) {
+					$n = count( $b['split'] );
+					foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $share ) {
+						$owe( $id, $b['from'], $share, $b, sprintf( '%s hat %s %s, aufgeteilt auf %d · Anteil %s', $name( $b['from'] ), $eu, $b['from'] ? 'ausgelegt' : 'aus der Kasse bezahlt', $n, glp_cash_money( $share ) ) );
+					}
+				} elseif ( $b['from'] ) {
+					$owe( 0, $b['from'], $a, $b, sprintf( '%s hat %s ausgelegt, die Bandkasse erstattet', $name( $b['from'] ), $eu ) );
+				}
+				break;
+			case 'in':
+				if ( $b['split'] ) {
+					$n = count( $b['split'] );
+					foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $share ) {
+						$owe( $b['from'], $id, $share, $b, sprintf( '%s hat %s eingenommen, aufgeteilt auf %d · Anteil %s', $name( $b['from'] ), $eu, $n, glp_cash_money( $share ) ) );
+					}
+				} elseif ( $b['from'] ) {
+					$owe( $b['from'], 0, $a, $b, sprintf( '%s hat %s für die Band eingenommen', $name( $b['from'] ), $eu ) );
+				}
+				break;
+			case 'move':
+				// from zahlt an to: to „schuldet“ from den Betrag (verrechnet sich mit offenen Schulden)
+				$owe( $b['to'], $b['from'], $a, $b, sprintf( '%s hat %s an %s gezahlt', $name( $b['from'] ), $eu, $name( $b['to'] ) ) );
+				break;
+		}
+	}
+	$out  = array();
+	$done = array();
+	foreach ( $edges as $key => $list ) {
+		[ $x, $y ] = array_map( 'intval', explode( '|', $key ) );
+		$pair = min( $x, $y ) . '|' . max( $x, $y );
+		if ( isset( $done[ $pair ] ) ) {
+			continue;
+		}
+		$done[ $pair ] = true;
+		$xy    = $edges[ $x . '|' . $y ] ?? array();
+		$yx    = $edges[ $y . '|' . $x ] ?? array();
+		$net   = array_sum( array_column( $xy, 'amount' ) ) - array_sum( array_column( $yx, 'amount' ) );
+		$items = array_merge( $xy, array_map( fn( $i ) => array_merge( $i, array( 'amount' => -$i['amount'] ) ), $yx ) );
+		if ( ! $net ) {
+			continue; // ausgeglichen
+		}
+		if ( $net < 0 ) { // umdrehen, damit amount positiv ist
+			[ $x, $y ] = array( $y, $x );
+			$net   = -$net;
+			$items = array_map( fn( $i ) => array_merge( $i, array( 'amount' => -$i['amount'] ) ), $items );
+		}
+		usort( $items, fn( $p, $q ) => strcmp( $q['date'], $p['date'] ) ?: $q['id'] <=> $p['id'] );
+		$out[] = array( 'debtor' => $x, 'creditor' => $y, 'amount' => $net, 'items' => $items );
+	}
+	usort( $out, fn( $p, $q ) => $q['amount'] <=> $p['amount'] );
+	return $out;
+}
+
 /** Buchungsdaten aus der Anfrage prüfen */
 function glp_cash_input( WP_REST_Request $req ) {
 	$kind   = sanitize_key( (string) $req->get_param( 'kind' ) );
@@ -184,7 +256,7 @@ function glp_cash_all() {
 
 function glp_rest_cash() {
 	$rows = glp_cash_all();
-	return glp_ok( array_merge( array( 'items' => $rows, 'categories' => glp_cash_categories() ), glp_cash_balances( $rows ) ) );
+	return glp_ok( array_merge( array( 'items' => $rows, 'categories' => glp_cash_categories(), 'debts' => glp_cash_debts( $rows ) ), glp_cash_balances( $rows ) ) );
 }
 
 function glp_rest_cash_create( WP_REST_Request $req ) {

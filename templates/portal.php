@@ -326,8 +326,12 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<label class="feld"><span class="meta" id="k-from-label">Bezahlt von</span><select id="k-from"></select></label>
 				<label class="feld" id="k-to-box" hidden><span class="meta">An</span><select id="k-to"></select></label>
 				<fieldset class="feld feld--breit" id="k-split-box"><legend class="meta" id="k-split-label">Wer trägt die Kosten?</legend>
-					<div class="who-pick" id="k-split"></div>
-					<span class="meta meta--hell">Nichts angehakt = die Band trägt es gemeinsam.</span>
+					<div class="seg" id="k-bear">
+						<button type="button" class="chip is-on" data-bear="all">Alle zu gleichen Teilen</button>
+						<button type="button" class="chip" data-bear="some">Nur bestimmte</button>
+						<button type="button" class="chip" data-bear="kasse">Bandkasse</button>
+					</div>
+					<div class="who-pick" id="k-split" hidden></div>
 				</fieldset>
 				<p class="feld--breit kasse-form__hint" id="k-hint"></p>
 				<label class="feld feld--breit" id="k-receipt-box"><span class="meta">Beleg (Foto oder PDF, optional)</span><input type="file" id="k-receipt" accept="image/*,.pdf,.heic"></label>
@@ -340,10 +344,13 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			</form>
 
 			<div class="kasse-grid">
-				<article class="card">
-					<div class="card__row"><span class="meta">Salden · wer bekommt, wer zahlt</span></div>
-					<ul class="saldo" id="k-saldo"></ul>
-					<p class="klein">Positiv: die Band schuldet dir Geld (z. B. weil du etwas ausgelegt hast). Negativ: du schuldest der Band etwas (z. B. Merch-Geld bei dir).</p>
+				<article class="card schulden">
+					<div class="card__row"><span class="meta">Wer schuldet wem?</span>
+						<span class="seg seg--klein"><button type="button" class="chip is-on" data-k-scope="me">Meine</button><button type="button" class="chip" data-k-scope="all">Alle</button></span>
+					</div>
+					<div class="schulden__me" id="k-me"></div>
+					<ul class="schulden__list" id="k-debts"></ul>
+					<details class="schulden__saldo"><summary class="meta">Unterm Strich pro Person ▾</summary><ul class="saldo" id="k-saldo"></ul></details>
 				</article>
 				<article class="card">
 					<div class="card__row"><span class="meta">Ausgaben nach Kategorie · <span class="k-year"></span></span></div>

@@ -519,3 +519,45 @@ textarea.lyrics { font-family: var(--f-mono); font-size: 13px; line-height: 1.6;
 }
 fieldset.feld { min-width: 0; min-inline-size: 0; }
 .who-pick label { position: relative; }
+
+/* Wer schuldet wem */
+.seg--klein .chip { padding: 5px 10px; font-size: 11px; }
+.schulden__me { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 14px; width: 100%; }
+.schulden__kpi { border: 1px solid var(--linie); padding: 10px 12px; display: grid; gap: 4px; }
+.schulden__kpi b { font-family: var(--f-display); font-stretch: 125%; font-weight: 900; font-size: 22px; color: var(--kalkweiss); }
+.schulden__kpi.is-minus b { color: #d9776b; }
+.schulden__kpi.is-plus b { color: var(--akzent); }
+.schulden__list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.schuld { border-top: 1px solid var(--linie); }
+.schuld summary { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 11px 0; cursor: pointer; list-style: none; }
+.schuld summary::-webkit-details-marker { display: none; }
+.schuld__pfeil { color: var(--flechte); }
+.schuld__text { font-size: 13px; color: var(--kalk); min-width: 0; }
+.schuld__text b { color: var(--kalkweiss); font-weight: 700; }
+.schuld__betrag { font-family: var(--f-display); font-stretch: 112%; font-weight: 800; font-size: 16px; color: var(--kalkweiss); white-space: nowrap; }
+.schuld.is-minus .schuld__betrag { color: #d9776b; }
+.schuld.is-plus .schuld__betrag { color: var(--akzent); }
+.schuld__chev { color: var(--flechte); transition: transform .25s var(--ease); }
+.schuld details[open] .schuld__chev { transform: rotate(180deg); }
+.schuld__items { list-style: none; margin: 0 0 10px; padding: 0 0 0 4px; border-left: 2px solid var(--linie-stark); }
+.schuld__items li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 7px 0 7px 10px; }
+.schuld__items li > span:nth-child(2) { display: grid; gap: 2px; }
+.schuld__items b { font-family: var(--f-mono); font-weight: 400; font-size: 12px; color: var(--kalkweiss); white-space: nowrap; }
+.schuld__items b.is-neg { color: var(--akzent); }
+.schuld__summe { border-top: 1px dashed var(--linie-stark); }
+.schuld__summe b { font-weight: 700; }
+.schuld details > .btn { margin: 0 0 14px; }
+.avatar--kasse { background: var(--akzent); color: var(--schwarz); }
+.schulden__saldo { margin-top: 14px; width: 100%; }
+.schulden__saldo summary { cursor: pointer; list-style: none; }
+@media (max-width: 600px) {
+  .schuld summary { grid-template-columns: auto auto auto minmax(0, 1fr) auto; }
+  .schuld__text { grid-column: 1 / 4; grid-row: 2; }
+  .schuld__chev { display: none; }
+  .schuld__items li { grid-template-columns: minmax(0, 1fr) auto; }
+  .schuld__items li > .meta:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .schuld__items li.schuld__summe { display: flex; justify-content: space-between; align-items: baseline; }
+  .schuld__items li.schuld__summe > span:first-child { display: none; }
+}
