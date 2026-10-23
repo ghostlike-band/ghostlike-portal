@@ -81,12 +81,12 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 	<aside class="side">
 		<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="side__mark logo" aria-label="Zur Website"><?php echo $mark; // phpcs:ignore ?></a>
 		<nav class="side__nav" aria-label="Portal">
-			<button data-view="home" class="is-active"><span class="meta">01</span>Übersicht</button>
-			<button data-view="kalender"><span class="meta">02</span>Kalender</button>
-			<button data-view="studio"><span class="meta">03</span>Studio</button>
-			<button data-view="kasse"><span class="meta">04</span>Bandkasse</button>
-			<button data-view="pool"><span class="meta">05</span>Pressepool</button>
-			<button data-view="pr"><span class="meta">06</span>PR</button>
+			<button data-view="home" class="is-active"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span class="meta">01</span><span class="side__long">Übersicht</span><span class="side__short">Start</span></button>
+			<button data-view="kalender"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="meta">02</span><span class="side__long">Kalender</span><span class="side__short">Kalender</span></button>
+			<button data-view="studio"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg><span class="meta">03</span><span class="side__long">Studio</span><span class="side__short">Studio</span></button>
+			<button data-view="kasse"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="1"/><path d="M3 10h18M16 15h2"/></svg><span class="meta">04</span><span class="side__long">Bandkasse</span><span class="side__short">Kasse</span></button>
+			<button data-view="pool"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><span class="meta">05</span><span class="side__long">Pressepool</span><span class="side__short">Presse</span></button>
+			<button data-view="pr"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l6 4V6L7 10zM17 9a4 4 0 0 1 0 6M19.5 6.5a8 8 0 0 1 0 11"/></svg><span class="meta">06</span><span class="side__long">PR</span><span class="side__short">PR</span></button>
 		</nav>
 		<div class="side__user">
 			<button class="avatar avatar--knopf" id="me-avatar" data-goto="profil" title="Mein Profil" aria-label="Mein Profil"></button>
