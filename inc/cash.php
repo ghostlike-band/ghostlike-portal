@@ -66,6 +66,18 @@ function glp_cash_shares( $amount, $ids ) {
 	return $out;
 }
 
+/** Ausgabe eines Mitglieds ohne Aufteilung: gilt für alle Mitglieder (die Bandkasse übernimmt vorerst nichts) */
+function glp_cash_split( $b ) {
+	if ( $b['kind'] === 'out' && $b['from'] && ! $b['split'] ) {
+		static $all = null;
+		if ( null === $all ) {
+			$all = array_map( 'intval', array_column( glp_members(), 'id' ) );
+		}
+		return $all;
+	}
+	return $b['split'];
+}
+
 /** Kassenstand, Salden je Mitglied und Beiträge aus allen Buchungen */
 function glp_cash_balances( $rows ) {
 	$cash = 0;
@@ -82,7 +94,7 @@ function glp_cash_balances( $rows ) {
 		switch ( $b['kind'] ) {
 			case 'out':
 				$b['from'] ? $add( $b['from'], $a ) : $cash -= $a;
-				foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $s ) {
+				foreach ( glp_cash_shares( $a, glp_cash_split( $b ) ) as $id => $s ) {
 					$add( $id, -$s );
 				}
 				break;
@@ -127,6 +139,7 @@ function glp_cash_debts( $rows ) {
 		$eu = glp_cash_money( $a );
 		switch ( $b['kind'] ) {
 			case 'out':
+				$b['split'] = glp_cash_split( $b );
 				if ( $b['split'] ) {
 					$n = count( $b['split'] );
 					foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $share ) {

@@ -1080,7 +1080,7 @@
 
   function renderVerlauf() {
     $('#k-list').innerHTML = K.items.map((b) => {
-      const what = b.kind === 'out' ? (b.from ? `${esc(whoDu(b.from))} hat bezahlt` : 'aus der Bandkasse') + (b.split.length && b.split.length < S.members.length ? ` · geteilt mit ${b.split.map((id) => esc(whoDu(id))).join(', ')}` : !b.split.length && b.from ? ' · Bandkasse erstattet' : '')
+      const what = b.kind === 'out' ? (b.from ? `${esc(whoDu(b.from))} hat bezahlt` : 'aus der Bandkasse') + (b.split.length && b.split.length < S.members.length ? ` · geteilt mit ${b.split.map((id) => esc(whoDu(id))).join(', ')}` : '')
         : b.kind === 'in' ? (b.from ? `Geld liegt bei ${esc(whoDu(b.from))}` : 'in die Bandkasse')
         : b.kind === 'move' ? `${esc(whoDu(b.from))} → ${esc(whoDu(b.to))}${b.note ? ' · ' + esc(b.note) : ''}` : `Beitrag von ${esc(whoDu(b.from))}`;
       const st = b.status === 'pending' ? ' · ⏳ unbestätigt' : b.status === 'rejected' ? ' · nicht angekommen' : '';
@@ -1120,12 +1120,15 @@
   });
 
   // Formular: Ausgabe (wird auf alle aufgeteilt) oder Einnahme (gehört der Bandkasse)
-  function fillSplit(ids, kasse) {
-    const set = new Set(ids);
-    $('#k-split').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${m.id}" ${set.has(m.id) ? 'checked' : ''}><span>${esc(m.name)}</span></label>`).join('')
-      + `<label class="k-split__kasse"><input type="checkbox" id="k-split-kasse" ${kasse ? 'checked' : ''}><span>Bandkasse übernimmt</span></label>`;
+  // Nichts angehakt heißt: auf alle Mitglieder aufteilen
+  const allIds = () => S.members.map((m) => m.id);
+  const isAll = (ids) => !ids.length || (ids.length === S.members.length && allIds().every((id) => ids.includes(id)));
+  function fillSplit(ids) {
+    const set = new Set(isAll(ids) ? [] : ids);
+    $('#k-split').innerHTML = S.members.map((m) => `<label><input type="checkbox" value="${m.id}" ${set.has(m.id) ? 'checked' : ''}><span>${esc(m.name)}</span></label>`).join('');
   }
-  const currentSplit = () => ($('#k-split-kasse') && $('#k-split-kasse').checked ? [] : $$('#k-split input[value]:checked').map((i) => +i.value));
+  const pickedSplit = () => $$('#k-split input:checked').map((i) => +i.value);
+  const currentSplit = () => { const p = pickedSplit(); return p.length ? p : allIds(); };
   function updateHint() {
     const a = parseEuro($('#k-amount').value) || 0, from = +$('#k-from').value, e = euro(a);
     let t = '';
@@ -1134,10 +1137,9 @@
       const split = from ? currentSplit() : [];
       $('#k-split').classList.toggle('is-off', !from);
       if (!from) t = `${e} gehen aus der Bandkasse, niemand schuldet etwas.`;
-      else if (!split.length) t = `Die Bandkasse gibt ${whoDu(from) === 'Du' ? 'dir' : who(from)} ${e} zurück.`;
       else {
         const share = euro(Math.floor(a / split.length)), others = split.filter((id) => id !== from).map(whoDu);
-        t = `${split.length === S.members.length ? 'Geteilt durch alle' : 'Geteilt durch ' + split.length}: ${share} pro Person.` + (others.length ? ` ${others.join(', ')} ${others.length > 1 || others[0] === 'Du' ? 'schulden' : 'schuldet'} ${from === S.me.id ? 'dir' : who(from)} je ${share}.` : '');
+        t = `${!pickedSplit().length ? `Geteilt durch alle ${split.length}` : 'Geteilt durch ' + split.length}: ${share} pro Person.` + (others.length ? ` ${others.join(', ')} ${others.length > 1 || others[0] === 'Du' ? 'schulden' : 'schuldet'} ${from === S.me.id ? 'dir' : who(from)} je ${share}.` : '');
       }
     }
     $('#k-hint').textContent = t;
@@ -1154,14 +1156,14 @@
     $('#k-from').innerHTML = kind === 'in' ? opt(0, 'In der Bandkasse') + people.join('') : people.join('') + opt(0, 'Bandkasse');
     $('#k-cat').innerHTML = Object.entries(K.categories).filter(([k]) => k !== 'beitrag').map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
     $('#k-cat').value = d.category || 'sonstiges';
-    fillSplit(d.split || [], !!b && kind === 'out' && !d.split.length);
+    fillSplit(b ? d.split : []);
     $('#k-split-box').hidden = kind === 'in';
     $('#k-amount').value = d.amount ? (d.amount / 100).toFixed(2).replace('.', ',') : '';
     $('#k-date').value = d.date || new Date().toISOString().slice(0, 10);
     $('#k-title').value = d.title || '';
     $('#k-note').value = d.note || '';
     // „Mehr Optionen“ nur offen, wenn die Buchung davon Gebrauch macht
-    const special = !!b && (b.split.length !== S.members.length && kind === 'out' || !!b.note || !!b.receipt);
+    const special = !!b && (kind === 'out' && !isAll(b.split) || !!b.note || !!b.receipt);
     $('#k-mehr').open = special;
     $('#k-delete').hidden = !b;
     $('#k-save').textContent = 'Speichern';
@@ -1179,7 +1181,6 @@
     e.preventDefault();
     const from = +$('#k-from').value;
     const split = K.kind === 'in' || !from ? [] : currentSplit();
-    if (K.kind === 'out' && from && !split.length && !$('#k-split-kasse').checked) { toast('Bitte mindestens eine Person anhaken'); return; }
     const body = { kind: K.kind, amount: (parseEuro($('#k-amount').value) / 100).toFixed(2), date: $('#k-date').value, title: $('#k-title').value.trim(), category: $('#k-cat').value, from, to: 0, note: $('#k-note').value.trim(), split };
     const btn = $('#k-save'); btn.disabled = true;
     try {

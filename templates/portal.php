@@ -317,7 +317,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 				<label class="feld"><span class="meta" id="k-from-label">Wer hat bezahlt?</span><select id="k-from"></select></label>
 				<details class="k-mehr" id="k-mehr">
 					<summary class="meta">Mehr Optionen ▾</summary>
-					<fieldset class="feld" id="k-split-box"><legend class="meta">Aufteilen auf</legend><div class="who-pick" id="k-split"></div></fieldset>
+					<fieldset class="feld" id="k-split-box"><legend class="meta">Aufteilen auf · nichts angehakt = alle</legend><div class="who-pick" id="k-split"></div></fieldset>
 					<label class="feld"><span class="meta">Datum</span><input type="date" id="k-date"></label>
 					<label class="feld"><span class="meta">Kategorie</span><select id="k-cat"></select></label>
 					<label class="feld"><span class="meta">Beleg (Foto oder PDF)</span><input type="file" id="k-receipt" accept="image/*,.pdf,.heic"></label>
