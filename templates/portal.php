@@ -285,6 +285,16 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<span class="meta">Benachrichtigungen</span>
 					<label class="check"><input type="checkbox" id="pf-n-versions"><span>Mail, wenn jemand eine neue Version hochlädt</span></label>
 					<p class="klein">Die Mail kommt mit Link direkt zum Song. Deine eigenen Uploads lösen keine Mail an dich aus.</p>
+					<div class="push" id="pf-push">
+						<span class="meta">Push aufs Handy</span>
+						<p class="klein" id="pf-push-state">Wird geprüft …</p>
+						<div class="actions">
+							<button type="button" class="btn btn--klein btn--patina" id="pf-push-on" hidden>Auf diesem Gerät aktivieren</button>
+							<button type="button" class="btn btn--klein" id="pf-push-test" hidden>Test senden</button>
+							<button type="button" class="link meta" id="pf-push-off" hidden>Auf diesem Gerät ausschalten</button>
+						</div>
+						<div class="push__types" id="pf-push-types"></div>
+					</div>
 				</form>
 
 				<article class="card profil__card">
@@ -441,7 +451,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 
 <div class="toast meta meta--hell" id="toast" role="status"></div>
 
-<script>window.GLP = <?php echo wp_json_encode( array( 'rest' => esc_url_raw( rest_url( GLP_NS . '/' ) ), 'nonce' => wp_create_nonce( 'wp_rest' ) ) ); ?>;</script>
+<script>window.GLP = <?php echo wp_json_encode( array( 'rest' => esc_url_raw( rest_url( GLP_NS . '/' ) ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'sw' => esc_url_raw( add_query_arg( 'glp_sw', 1, glp_portal_url() ) ), 'scope' => wp_make_link_relative( glp_portal_url() ) ) ); ?>;</script>
 <script src="<?php echo esc_url( GLP_URL . 'assets/js/portal.js?ver=' . $v( 'assets/js/portal.js' ) ); ?>"></script>
 <?php endif; ?>
 </body>

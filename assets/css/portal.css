@@ -711,3 +711,10 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 @media (max-width: 900px) {
   input, select, textarea, .copy input, textarea.lyrics { font-size: 16px !important; }
 }
+
+/* ---------- Push im Profil ---------- */
+.push { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--linie); }
+.push > p { margin: 0; }
+.push .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.push .actions:not(:has(:not([hidden]))) { display: none; }
+.push__types { display: grid; gap: 8px; }

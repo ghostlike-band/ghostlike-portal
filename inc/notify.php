@@ -19,6 +19,7 @@ function glp_notify_version( $song, $v, $note = '' ) {
 	$me   = get_current_user_id();
 	$from = glp_user_name( $me );
 	$link = glp_song_url( $song['id'] );
+	glp_push_version( $song, $v, $note );
 	foreach ( glp_members() as $m ) {
 		if ( $m['id'] === $me || ! glp_wants_version_mail( $m['id'] ) ) {
 			continue;

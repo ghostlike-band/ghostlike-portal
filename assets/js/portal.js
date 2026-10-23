@@ -99,6 +99,7 @@
     if (history.replaceState) history.replaceState(null, '', '#' + view);
     scrollTo(0, 0);
     if (view === 'kasse' && typeof loadCash === 'function') loadCash();
+    if (view === 'profil') setTimeout(renderPush);
   }
   $$('.side__nav button').forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
   document.addEventListener('click', (e) => { const g = e.target.closest('[data-goto]'); if (g) show(g.dataset.goto); });
@@ -1252,6 +1253,55 @@
     catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
   });
   $('#pf-notify').addEventListener('submit', (e) => e.preventDefault());
+
+  /* ---------- Push-Benachrichtigungen ---------- */
+  const PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const STANDALONE = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const swReady = PUSH_OK && CFG.sw ? navigator.serviceWorker.register(CFG.sw, { scope: CFG.scope }).catch(() => null) : Promise.resolve(null);
+  const keyBytes = (b64) => { const s = atob((b64 + '='.repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, (c) => c.charCodeAt(0)); };
+  async function currentSub() { const reg = await swReady; return reg && reg.pushManager ? reg.pushManager.getSubscription() : null; }
+  async function renderPush() {
+    const st = $('#pf-push-state'), on = $('#pf-push-on'), off = $('#pf-push-off'), test = $('#pf-push-test'), types = $('#pf-push-types');
+    if (!PUSH_OK) {
+      st.innerHTML = IS_IOS && !STANDALONE ? 'Auf dem iPhone geht Push nur in der App: Portal in Safari über <b>Teilen → Zum Home-Bildschirm</b> hinzufügen und von dort öffnen, dann hier aktivieren.' : 'Dieser Browser unterstützt keine Push-Benachrichtigungen.';
+      [on, off, test].forEach((b) => { b.hidden = true; }); types.innerHTML = ''; return;
+    }
+    let p; try { p = await api('push'); } catch (err) { st.textContent = err.message; return; }
+    const sub = await currentSub();
+    const denied = Notification.permission === 'denied';
+    st.innerHTML = denied ? 'Benachrichtigungen sind für das Portal blockiert. Erlaube sie in den Geräte-Einstellungen (iPhone: Einstellungen → Mitteilungen → GL Portal).'
+      : sub ? `✓ Auf diesem Gerät aktiv${p.devices > 1 ? ` · insgesamt ${p.devices} Geräte` : ''}.` : `Auf diesem Gerät aus${p.devices ? ` · aktiv auf ${p.devices} anderen Gerät${p.devices > 1 ? 'en' : ''}` : ''}.`;
+    on.hidden = !!sub || denied; off.hidden = !sub; test.hidden = !sub;
+    types.innerHTML = Object.entries(p.types).map(([k, l]) => `<label class="check"><input type="checkbox" data-push-type="${k}" ${p.prefs[k] ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('');
+  }
+  $('#pf-push-on').addEventListener('click', async (e) => {
+    const btn = e.target; btn.disabled = true;
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Ohne Erlaubnis keine Push-Nachrichten.');
+      const reg = await swReady; if (!reg) throw new Error('Service Worker konnte nicht starten.');
+      const { key } = await api('push');
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+      await api('push/subscribe', { method: 'POST', body: { subscription: sub.toJSON(), device: IS_IOS ? 'iPhone/iPad' : navigator.userAgentData?.platform || navigator.platform || '' } });
+      toast('Push aktiviert ✓');
+    } catch (err) { toast(err.message); }
+    btn.disabled = false; renderPush();
+  });
+  $('#pf-push-off').addEventListener('click', async () => {
+    try { const sub = await currentSub(); if (sub) { await api('push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }); await sub.unsubscribe(); } toast('Push auf diesem Gerät aus'); }
+    catch (err) { toast(err.message); }
+    renderPush();
+  });
+  $('#pf-push-test').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try { await api('push/test', { method: 'POST' }); toast('Test gesendet – kommt gleich an'); } catch (err) { toast(err.message); }
+    e.target.disabled = false;
+  });
+  $('#pf-push-types').addEventListener('change', async (e) => {
+    const k = e.target.dataset.pushType; if (!k) return;
+    try { await api('push/prefs', { method: 'POST', body: { [k]: e.target.checked } }); toast('Gespeichert'); } catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
+  });
   $('#pf-email').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
     S.me = await api('profile/email', { method: 'POST', body: { email: $('#pf-mail').value.trim(), password: $('#pf-mail-pass').value } });
     $('#pf-mail-pass').value = ''; renderProfile(true); toast('E-Mail geändert');

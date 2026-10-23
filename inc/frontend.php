@@ -45,6 +45,15 @@ add_action( 'template_redirect', function () {
 		exit;
 	}
 
+	// Service Worker für Push-Benachrichtigungen (Scope /portal/)
+	if ( isset( $_GET['glp_sw'] ) ) {
+		header( 'Content-Type: application/javascript; charset=utf-8' );
+		header( 'Service-Worker-Allowed: ' . wp_make_link_relative( glp_portal_url() ) );
+		header( 'Cache-Control: no-cache' );
+		readfile( GLP_DIR . 'assets/js/sw.js' );
+		exit;
+	}
+
 	nocache_headers();
 	header( 'X-Robots-Tag: noindex, nofollow', true );
 
