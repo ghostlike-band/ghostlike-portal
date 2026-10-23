@@ -16,7 +16,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 <html lang="de">
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 	<meta name="robots" content="noindex, nofollow">
 	<meta name="theme-color" content="#0A0B0A">
 	<title>Member-Portal · <?php echo esc_html( get_bloginfo( 'name' ) ); ?></title>
@@ -354,13 +354,13 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 
 		<!-- ===== PRESSEPOOL ===== -->
 		<section class="view" data-view="pool" hidden>
-			<header class="view__head"><span class="meta">04 — In Planung</span><h1 class="display-l">Presse&shy;pool</h1></header>
+			<header class="view__head"><span class="meta">05 — In Planung</span><h1 class="display-l">Presse&shy;pool</h1></header>
 			<p class="coming meta meta--hell">Kommt als nächste Ausbaustufe: Upload, Kategorien nach Ära, ZIP-Download, Haken „öffentlich“ → erscheint automatisch im Pressekit der Website.</p>
 		</section>
 
 		<!-- ===== PR ===== -->
 		<section class="view" data-view="pr" hidden>
-			<header class="view__head"><span class="meta">05 — In Planung</span><h1 class="display-l">PR-Zen&shy;trale</h1></header>
+			<header class="view__head"><span class="meta">06 — In Planung</span><h1 class="display-l">PR-Zen&shy;trale</h1></header>
 			<p class="coming meta meta--hell">Kommt danach: Kontakte &amp; Verlauf, Kampagnen mit Vorlagen im CI-Look, persönliche Release-Links pro Empfänger (gesehen / gehört / geladen), Follow-up-Erinnerungen.</p>
 		</section>
 	</main>

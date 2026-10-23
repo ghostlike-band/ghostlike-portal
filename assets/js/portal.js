@@ -4,6 +4,10 @@
 (function () {
   'use strict';
 
+  // Handy: kein Zoomen per Pinch (iOS ignoriert user-scalable=no). Doppeltipp-Zoom verhindert touch-action im CSS.
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
   const CFG = window.GLP || {};
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];

@@ -188,8 +188,9 @@ tr.sep td { background: var(--schwarz) !important; padding: 8px 12px; text-align
 @media (max-width: 900px) {
   .login { grid-template-columns: 1fr; }
   .login__img { display: none; }
-  .app { grid-template-columns: 1fr; }
-  .side { position: sticky; top: 0; z-index: 20; height: auto; flex-direction: row; align-items: center; gap: 12px; padding: 10px 16px; }
+  /* Kopfzeile bleibt schmal, egal wie kurz der Inhalt ist */
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; align-content: start; }
+  .side { position: sticky; top: 0; z-index: 20; height: auto; align-self: start; flex-direction: row; align-items: center; gap: 12px; padding: calc(10px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
   /* Menü als Leiste am unteren Bildschirmrand, mit dem Daumen erreichbar */
   .side__nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; display: flex; gap: 0; background: var(--schiefer); border-top: 1px solid var(--linie); padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); overflow-x: auto; scrollbar-width: none; }
   .side__nav::-webkit-scrollbar { display: none; }
@@ -703,4 +704,10 @@ fieldset.feld { min-width: 0; min-inline-size: 0; }
   .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   body.has-player .toast { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
   body.has-player .main { padding-bottom: 80px; }
+}
+
+/* ---------- Mobil: kein Zoomen (Doppeltipp, Pinch, Fokus auf Eingabefelder) ---------- */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (max-width: 900px) {
+  input, select, textarea, .copy input, textarea.lyrics { font-size: 16px !important; }
 }
