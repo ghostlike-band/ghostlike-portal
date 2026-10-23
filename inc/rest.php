@@ -538,6 +538,7 @@ function glp_me() {
 		'first'    => (string) $u->first_name,
 		'last'     => (string) $u->last_name,
 		'role'     => (string) get_user_meta( $u->ID, 'glp_role_text', true ),
+		'paypal'   => (string) get_user_meta( $u->ID, 'glp_paypal', true ),
 		'email'    => (string) $u->user_email,
 		'login'    => (string) $u->user_login,
 		'admin'    => current_user_can( 'manage_options' ),
@@ -555,6 +556,12 @@ function glp_rest_profile( WP_REST_Request $req ) {
 	$first = sanitize_text_field( (string) $req->get_param( 'first' ) );
 	$last  = sanitize_text_field( (string) $req->get_param( 'last' ) );
 	$role  = mb_substr( sanitize_text_field( (string) $req->get_param( 'role' ) ), 0, 80 );
+	if ( $req->has_param( 'paypal' ) ) {
+		// nur den Namen speichern, auch wenn jemand den ganzen Link einfügt
+		$pp = preg_replace( '~^.*paypal\.me/~i', '', trim( (string) $req->get_param( 'paypal' ) ) );
+		$pp = preg_replace( '/[^A-Za-z0-9_.-]/', '', explode( '/', $pp )[0] );
+		update_user_meta( $u->ID, 'glp_paypal', mb_substr( $pp, 0, 40 ) );
+	}
 	if ( $first === '' ) {
 		return glp_err( 'Bitte einen Vornamen angeben.' );
 	}

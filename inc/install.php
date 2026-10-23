@@ -123,6 +123,8 @@ function glp_install() {
 		note text NULL,
 		receipt varchar(190) NOT NULL DEFAULT '',
 		receipt_name varchar(190) NOT NULL DEFAULT '',
+		status varchar(10) NOT NULL DEFAULT 'ok',
+		confirmed_by bigint(20) unsigned NOT NULL DEFAULT 0,
 		created_by bigint(20) unsigned NOT NULL DEFAULT 0,
 		created_at datetime NOT NULL,
 		updated_at datetime NULL,

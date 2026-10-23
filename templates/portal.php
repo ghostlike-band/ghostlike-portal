@@ -259,6 +259,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<label class="feld"><span class="meta">Vorname *</span><input id="pf-first" name="first" required maxlength="60" autocomplete="given-name"></label>
 					<label class="feld"><span class="meta">Nachname</span><input id="pf-last" name="last" maxlength="60" autocomplete="family-name"></label>
 					<label class="feld"><span class="meta">Instrumente / Rolle in der Band</span><input id="pf-role" name="role" maxlength="80" placeholder="z. B. Gitarre, Backing Vocals"></label>
+					<label class="feld"><span class="meta">PayPal.me-Name (für die Bandkasse)</span><span class="prefix-input"><span class="meta">paypal.me/</span><input id="pf-paypal" name="paypal" maxlength="40" placeholder="deinname" autocomplete="off" autocapitalize="off"></span></label>
 					<p class="klein">Dein Vorname wird im Portal angezeigt und für die Zuständigkeiten im Studio-Tool genutzt. Änderst du ihn, werden deine Zuständigkeiten automatisch mit umbenannt.</p>
 					<button class="btn btn--patina" type="submit">Speichern</button>
 				</form>
@@ -303,6 +304,18 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<button class="btn btn--klein btn--patina" id="k-new">+ Buchung</button>
 				</div>
 			</header>
+			<article class="card schulden">
+				<div class="mein-stand" id="k-me"></div>
+				<div class="k-confirm" id="k-confirm" hidden></div>
+				<div class="schulden__cols">
+					<section class="schulden__col"><h3 class="meta">Du zahlst</h3><ul class="pp-list" id="k-pay"></ul></section>
+					<section class="schulden__col"><h3 class="meta">Du bekommst</h3><ul class="pp-list" id="k-get"></ul></section>
+				</div>
+				<p class="klein schulden__tipp" id="k-tipp" hidden></p>
+				<details class="schulden__band"><summary class="meta" id="k-band-sum">Alle offenen Beträge in der Band ▾</summary><ul class="pp-list pp-list--band" id="k-debts"></ul></details>
+				<details class="schulden__band"><summary class="meta">Unterm Strich pro Person ▾</summary><ul class="saldo" id="k-saldo"></ul></details>
+			</article>
+
 			<div class="kpis kpis--kasse">
 				<div class="kpi"><span class="meta">Kassenstand</span><b id="k-cash">–</b></div>
 				<div class="kpi"><span class="meta">Einnahmen <span class="k-year"></span></span><b id="k-in">–</b></div>
@@ -344,14 +357,6 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			</form>
 
 			<div class="kasse-grid">
-				<article class="card schulden">
-					<div class="card__row"><span class="meta">Wer schuldet wem?</span>
-						<span class="seg seg--klein"><button type="button" class="chip is-on" data-k-scope="me">Meine</button><button type="button" class="chip" data-k-scope="all">Alle</button></span>
-					</div>
-					<div class="schulden__me" id="k-me"></div>
-					<ul class="schulden__list" id="k-debts"></ul>
-					<details class="schulden__saldo"><summary class="meta">Unterm Strich pro Person ▾</summary><ul class="saldo" id="k-saldo"></ul></details>
-				</article>
 				<article class="card">
 					<div class="card__row"><span class="meta">Ausgaben nach Kategorie · <span class="k-year"></span></span></div>
 					<ul class="kat" id="k-cats"></ul>

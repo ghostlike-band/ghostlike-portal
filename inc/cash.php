@@ -45,6 +45,8 @@ function glp_cash_row( $r ) {
 		'receipt'  => $r->receipt !== '' ? array( 'name' => $r->receipt_name, 'url' => add_query_arg( 'beleg', (int) $r->id, glp_portal_url() ) ) : null,
 		'by'       => (int) $r->created_by,
 		'byName'   => glp_user_name( $r->created_by ),
+		'status'   => $r->status ?: 'ok', // ok | pending (gemeldet, wartet auf Empfänger) | rejected
+		'confirmedBy' => (int) $r->confirmed_by,
 	);
 }
 
@@ -73,6 +75,9 @@ function glp_cash_balances( $rows ) {
 		$bal[ $id ] = ( $bal[ $id ] ?? 0 ) + $v;
 	};
 	foreach ( $rows as $b ) {
+		if ( $b['status'] !== 'ok' ) {
+			continue; // gemeldete, noch nicht bestätigte Zahlungen zählen nicht
+		}
 		$a = $b['amount'];
 		switch ( $b['kind'] ) {
 			case 'out':
@@ -115,6 +120,9 @@ function glp_cash_debts( $rows ) {
 	};
 	$name = fn( $id ) => $id ? glp_user_name( $id ) : 'Bandkasse';
 	foreach ( array_reverse( $rows ) as $b ) {
+		if ( $b['status'] !== 'ok' ) {
+			continue;
+		}
 		$a  = $b['amount'];
 		$eu = glp_cash_money( $a );
 		switch ( $b['kind'] ) {
@@ -122,17 +130,17 @@ function glp_cash_debts( $rows ) {
 				if ( $b['split'] ) {
 					$n = count( $b['split'] );
 					foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $share ) {
-						$owe( $id, $b['from'], $share, $b, sprintf( '%s hat %s %s, aufgeteilt auf %d · Anteil %s', $name( $b['from'] ), $eu, $b['from'] ? 'ausgelegt' : 'aus der Kasse bezahlt', $n, glp_cash_money( $share ) ) );
+						$owe( $id, $b['from'], $share, $b, sprintf( '%s hat %s bezahlt · geteilt durch %d', $name( $b['from'] ), $eu, $n ) );
 					}
 				} elseif ( $b['from'] ) {
-					$owe( 0, $b['from'], $a, $b, sprintf( '%s hat %s ausgelegt, die Bandkasse erstattet', $name( $b['from'] ), $eu ) );
+					$owe( 0, $b['from'], $a, $b, sprintf( '%s hat %s ausgelegt · Bandkasse erstattet', $name( $b['from'] ), $eu ) );
 				}
 				break;
 			case 'in':
 				if ( $b['split'] ) {
 					$n = count( $b['split'] );
 					foreach ( glp_cash_shares( $a, $b['split'] ) as $id => $share ) {
-						$owe( $b['from'], $id, $share, $b, sprintf( '%s hat %s eingenommen, aufgeteilt auf %d · Anteil %s', $name( $b['from'] ), $eu, $n, glp_cash_money( $share ) ) );
+						$owe( $b['from'], $id, $share, $b, sprintf( '%s hat %s eingenommen · geteilt durch %d', $name( $b['from'] ), $eu, $n ) );
 					}
 				} elseif ( $b['from'] ) {
 					$owe( $b['from'], 0, $a, $b, sprintf( '%s hat %s für die Band eingenommen', $name( $b['from'] ), $eu ) );
@@ -140,7 +148,7 @@ function glp_cash_debts( $rows ) {
 				break;
 			case 'move':
 				// from zahlt an to: to „schuldet“ from den Betrag (verrechnet sich mit offenen Schulden)
-				$owe( $b['to'], $b['from'], $a, $b, sprintf( '%s hat %s an %s gezahlt', $name( $b['from'] ), $eu, $name( $b['to'] ) ) );
+				$owe( $b['to'], $b['from'], $a, $b, sprintf( '%s hat %s an %s gezahlt%s', $name( $b['from'] ), $eu, $name( $b['to'] ), $b['note'] !== '' ? ' (' . $b['note'] . ')' : '' ) );
 				break;
 		}
 	}
@@ -247,6 +255,7 @@ add_action( 'rest_api_init', function () {
 	$r( '/cash/(?P<id>\d+)', 'POST', 'glp_rest_cash_update' );
 	$r( '/cash/(?P<id>\d+)', 'DELETE', 'glp_rest_cash_delete' );
 	$r( '/cash/(?P<id>\d+)/receipt', 'POST', 'glp_rest_cash_receipt' );
+	$r( '/cash/(?P<id>\d+)/confirm', 'POST', 'glp_rest_cash_confirm' );
 } );
 
 function glp_cash_all() {
@@ -265,13 +274,91 @@ function glp_rest_cash_create( WP_REST_Request $req ) {
 	if ( is_wp_error( $data ) ) {
 		return glp_err( $data->get_error_message() );
 	}
-	$wpdb->insert( glp_table( 'cash' ), $data + array( 'created_by' => get_current_user_id(), 'created_at' => current_time( 'mysql' ) ) );
+	$me = get_current_user_id();
+	// Zahlungen (Ausgleich) gelten erst, wenn der Empfänger sie bestätigt.
+	// Ausnahme: der Empfänger trägt sie selbst ein („Bar erhalten“).
+	$data['status'] = $data['kind'] === 'move' && glp_cash_needs_confirm( $data['to_id'], $data['from_id'], $me ) ? 'pending' : 'ok';
+	$wpdb->insert( glp_table( 'cash' ), $data + array( 'created_by' => $me, 'created_at' => current_time( 'mysql' ), 'confirmed_by' => $data['status'] === 'ok' && $data['kind'] === 'move' ? $me : 0 ) );
 	$id = (int) $wpdb->insert_id;
 	if ( ! $id ) {
 		return glp_err( 'Buchung konnte nicht gespeichert werden.', 500 );
 	}
-	glp_log( 'Bandkasse: ' . $data['title'] . ' · ' . glp_cash_money( $data['amount'] ) );
-	return glp_ok( array( 'id' => $id ) );
+	if ( $data['status'] === 'pending' ) {
+		glp_log( 'Bandkasse: Zahlung gemeldet · ' . glp_user_name( $data['from_id'] ) . ' → ' . ( $data['to_id'] ? glp_user_name( $data['to_id'] ) : 'Bandkasse' ) . ' · ' . glp_cash_money( $data['amount'] ) );
+		glp_cash_notify_pending( $id );
+	} else {
+		glp_log( 'Bandkasse: ' . $data['title'] . ' · ' . glp_cash_money( $data['amount'] ) );
+	}
+	return glp_ok( array( 'id' => $id, 'status' => $data['status'] ) );
+}
+
+/** Muss diese Zahlung noch vom Empfänger bestätigt werden? */
+function glp_cash_needs_confirm( $to, $from, $me ) {
+	if ( $to ) {
+		return (int) $to !== (int) $me; // an ein Mitglied: nur der Empfänger selbst bestätigt sofort
+	}
+	return (int) $from === (int) $me; // an die Bandkasse: ein anderes Mitglied muss bestätigen
+}
+
+/** Darf $uid diese gemeldete Zahlung bestätigen? */
+function glp_cash_can_confirm( $row, $uid ) {
+	if ( $row->status !== 'pending' ) {
+		return false;
+	}
+	if ( (int) $row->to_id ) {
+		return (int) $row->to_id === (int) $uid;
+	}
+	return (int) $row->from_id !== (int) $uid; // Bandkasse: jeder außer dem Zahlenden
+}
+
+function glp_rest_cash_confirm( WP_REST_Request $req ) {
+	global $wpdb;
+	$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . glp_table( 'cash' ) . ' WHERE id = %d', (int) $req['id'] ) );
+	$uid = get_current_user_id();
+	if ( ! $row ) {
+		return glp_err( 'Zahlung nicht gefunden.', 404 );
+	}
+	if ( ! glp_cash_can_confirm( $row, $uid ) ) {
+		return glp_err( 'Diese Zahlung kann nur der Empfänger bestätigen.' );
+	}
+	$ok = (bool) $req->get_param( 'ok' );
+	$wpdb->update( glp_table( 'cash' ), array( 'status' => $ok ? 'ok' : 'rejected', 'confirmed_by' => $uid, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $row->id ) );
+	$to = (int) $row->to_id ? glp_user_name( $row->to_id ) : 'Bandkasse';
+	glp_log( 'Bandkasse: Zahlung ' . glp_user_name( $row->from_id ) . ' → ' . $to . ' · ' . glp_cash_money( (int) $row->amount ) . ( $ok ? ' bestätigt ✓' : ' nicht angekommen' ) );
+	return glp_ok( array( 'status' => $ok ? 'ok' : 'rejected' ) );
+}
+
+/** Mail an den Empfänger: bitte bestätigen */
+function glp_cash_notify_pending( $id ) {
+	global $wpdb;
+	$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . glp_table( 'cash' ) . ' WHERE id = %d', $id ) );
+	if ( ! $row ) {
+		return;
+	}
+	$to_ids = (int) $row->to_id ? array( (int) $row->to_id ) : array_values( array_diff( array_column( glp_members(), 'id' ), array( (int) $row->from_id ) ) );
+	$from   = glp_user_name( $row->from_id );
+	$amount = glp_cash_money( (int) $row->amount );
+	$how    = $row->note !== '' ? ' (' . $row->note . ')' : '';
+	foreach ( $to_ids as $uid ) {
+		$u = get_userdata( $uid );
+		if ( ! $u || ! is_email( $u->user_email ) ) {
+			continue;
+		}
+		$target = (int) $row->to_id ? 'dir' : 'der Bandkasse';
+		wp_mail(
+			$u->user_email,
+			sprintf( 'Bitte bestätigen: %s hat %s %s gezahlt', $from, $target, $amount ),
+			sprintf( "Servus %s,
+
+%s hat im Portal gemeldet, %s %s gezahlt zu haben%s.
+
+Ist das Geld angekommen? Bitte kurz bestätigen:
+%s
+
+Erst nach deiner Bestätigung gilt die Schuld als bezahlt.
+", glp_user_name( $uid ), $from, $target, $amount, $how, glp_portal_url() . '#kasse' )
+		);
+	}
 }
 
 function glp_rest_cash_update( WP_REST_Request $req ) {
@@ -287,7 +374,16 @@ function glp_rest_cash_update( WP_REST_Request $req ) {
 	if ( is_wp_error( $data ) ) {
 		return glp_err( $data->get_error_message() );
 	}
+	if ( $data['kind'] === 'move' ) { // geänderte Zahlung muss der Empfänger erneut bestätigen
+		$data['status']       = glp_cash_needs_confirm( $data['to_id'], $data['from_id'], get_current_user_id() ) ? 'pending' : 'ok';
+		$data['confirmed_by'] = $data['status'] === 'ok' ? get_current_user_id() : 0;
+	} else {
+		$data['status'] = 'ok';
+	}
 	$wpdb->update( glp_table( 'cash' ), $data + array( 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $row->id ) );
+	if ( $data['status'] === 'pending' && $row->status !== 'pending' ) {
+		glp_cash_notify_pending( (int) $row->id );
+	}
 	glp_log( 'Bandkasse geändert: ' . $data['title'] . ' · ' . glp_cash_money( $data['amount'] ) );
 	return glp_ok( array( 'id' => (int) $row->id ) );
 }
@@ -375,7 +471,7 @@ add_action( 'template_redirect', function () {
 	header( 'Content-Disposition: attachment; filename="ghostlike-bandkasse-' . wp_date( 'Y-m-d' ) . '.csv"' );
 	$out = fopen( 'php://output', 'w' );
 	fwrite( $out, "\xEF\xBB\xBF" );
-	fputcsv( $out, array( 'Datum', 'Art', 'Titel', 'Kategorie', 'Betrag (EUR)', 'Von / bezahlt durch', 'An', 'Kosten trägt', 'Notiz', 'Beleg', 'Erfasst von' ), ';' );
+	fputcsv( $out, array( 'Datum', 'Art', 'Titel', 'Kategorie', 'Betrag (EUR)', 'Von / bezahlt durch', 'An', 'Kosten trägt', 'Notiz', 'Beleg', 'Erfasst von', 'Status' ), ';' );
 	foreach ( array_reverse( glp_cash_all() ) as $b ) {
 		$sign = in_array( $b['kind'], array( 'in', 'fee' ), true ) ? 1 : ( $b['kind'] === 'out' ? -1 : 0 );
 		fputcsv( $out, array(
@@ -390,6 +486,7 @@ add_action( 'template_redirect', function () {
 			$b['note'],
 			$b['receipt'] ? 'ja' : '',
 			$b['byName'],
+			array( 'ok' => 'bestätigt', 'pending' => 'gemeldet, unbestätigt', 'rejected' => 'nicht angekommen' )[ $b['status'] ] ?? $b['status'],
 		), ';' );
 	}
 	fclose( $out );

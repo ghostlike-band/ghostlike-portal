@@ -561,3 +561,59 @@ fieldset.feld { min-width: 0; min-inline-size: 0; }
   .schuld__items li.schuld__summe { display: flex; justify-content: space-between; align-items: baseline; }
   .schuld__items li.schuld__summe > span:first-child { display: none; }
 }
+.prefix-input { display: flex; align-items: stretch; border: 1px solid var(--linie-stark); background: var(--schwarz); }
+.prefix-input > .meta { display: grid; place-items: center; padding: 0 0 0 12px; color: var(--flechte); }
+.prefix-input input { border: 0 !important; padding-left: 2px !important; }
+
+/* ---------- Bandkasse: klare Übersicht ---------- */
+.kasse-grid { grid-template-columns: 1fr; }
+.schulden { margin-bottom: 18px; display: grid; gap: 18px; }
+.mein-stand { display: grid; gap: 6px; }
+.mein-stand__satz { margin: 0; font-family: var(--f-display); font-stretch: 125%; font-weight: 900; text-transform: uppercase; font-size: clamp(24px, 3.2vw, 40px); line-height: 1.05; color: var(--kalkweiss); }
+.mein-stand__satz .is-minus { color: #d9776b; }
+.mein-stand__satz .is-plus { color: var(--akzent); }
+.k-confirm { border: 1px solid var(--akzent); background: rgba(124, 154, 133, .08); padding: 12px 14px; display: grid; gap: 10px; }
+.k-confirm > .meta { color: var(--akzent); }
+.k-confirm__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; font-size: 14px; color: var(--kalk); }
+.k-confirm__row b { color: var(--kalkweiss); }
+.k-confirm__btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.schulden__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.schulden__col h3 { margin: 0 0 8px; }
+.pp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pp-list > .leer { color: var(--flechte); font-size: 14px; padding: 10px 0; }
+.pp { border: 1px solid var(--linie); border-left: 3px solid var(--linie-stark); padding: 12px 14px; display: grid; gap: 10px; background: var(--schwarz); }
+.pp.is-minus { border-left-color: #d9776b; }
+.pp.is-plus { border-left-color: var(--akzent); }
+.pp__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.pp__name { font-size: 14px; color: var(--kalk); min-width: 0; }
+.pp__name b { color: var(--kalkweiss); }
+.pp__amount { font-family: var(--f-display); font-stretch: 125%; font-weight: 900; font-size: 22px; color: var(--kalkweiss); white-space: nowrap; }
+.pp.is-minus .pp__amount { color: #d9776b; }
+.pp.is-plus .pp__amount { color: var(--akzent); }
+.pp__actions, .pp__confirm { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pp__wait { margin: 0; font-size: 13px; color: var(--kalk); }
+.pp__why summary { cursor: pointer; list-style: none; color: var(--flechte); }
+.pp__why summary::-webkit-details-marker { display: none; }
+.pp__why ul { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--linie); }
+.pp__why li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--linie); align-items: start; }
+.pp__why li > span:nth-child(2) { display: grid; gap: 2px; }
+.pp__why .label { font-size: 13px; }
+.pp__why b { font-family: var(--f-mono); font-weight: 400; font-size: 12px; color: var(--kalkweiss); white-space: nowrap; }
+.pp__why b.is-neg { color: var(--akzent); }
+.pp__sum .label { font-weight: 800; }
+.pp__sum b { font-weight: 700; }
+.schulden__tipp { margin: 0; }
+.schulden__band { border-top: 1px solid var(--linie); padding-top: 12px; }
+.schulden__band summary { cursor: pointer; list-style: none; }
+.schulden__band summary::-webkit-details-marker { display: none; }
+.schulden__band[open] > ul { margin-top: 12px; }
+.buchung.is-pending .buchung__amount { opacity: .5; }
+.buchung.is-rejected .label, .buchung.is-rejected .buchung__amount { text-decoration: line-through; opacity: .5; }
+@media (max-width: 800px) { .schulden__cols { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .k-confirm__row { grid-template-columns: auto minmax(0, 1fr); }
+  .k-confirm__btns { grid-column: 1 / -1; }
+  .pp__why li { grid-template-columns: minmax(0, 1fr) auto; }
+  .pp__why li > .meta:first-child { grid-column: 1 / -1; }
+  .pp__why li.pp__sum > span:first-child { display: none; }
+}

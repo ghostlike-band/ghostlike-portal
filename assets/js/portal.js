@@ -1048,9 +1048,10 @@
         : b.kind === 'move' ? `${esc(who(b.from))} → ${esc(who(b.to))}` : `von ${esc(who(b.from))}`;
       const split = b.split.length ? ` · getragen von ${b.split.map((id) => esc(who(id))).join(', ')}` : '';
       const mine = S.me.admin || b.by === S.me.id;
-      return `<li class="buchung buchung--${b.kind}">
+      const stTag = b.status === 'pending' ? ' <span class="tag tag--leer">⏳ wartet auf Bestätigung</span>' : b.status === 'rejected' ? ' <span class="tag">nicht angekommen</span>' : '';
+      return `<li class="buchung buchung--${b.kind} ${b.status !== 'ok' ? 'is-' + b.status : ''}">
         <span class="buchung__date meta">${esc(fmt(b.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span>
-        <span class="buchung__main"><span class="label">${esc(b.title)}</span>
+        <span class="buchung__main"><span class="label">${esc(b.title)}${stTag}</span>
           <span class="meta">${esc(KIND[b.kind])}${b.category && b.kind !== 'move' ? ' · ' + esc(K.categories[b.category] || '') : ''} · ${detail}${split}</span>
           ${b.note ? `<span class="meta meta--hell">${esc(b.note)}</span>` : ''}</span>
         <span class="buchung__amount">${sign}${euro(b.amount)}</span>
@@ -1059,46 +1060,96 @@
     }).join('') || '<li class="leer">Keine Buchungen in dieser Auswahl.</li>';
   }
 
-  // Wer schuldet wem – mit Begründung
+  // Wer schuldet wem – klar aus deiner Sicht, mit Begründung und Bezahlen per PayPal oder bar
+  const member = (id) => S.members.find((m) => m.id === id) || {};
   const whoAv = (id) => (id ? av(who(id)) : '<span class="avatar avatar--klein avatar--kasse" title="Bandkasse">€</span>');
+  const paypalUrl = (id, cents) => { const pp = member(id).paypal; return pp ? `https://www.paypal.me/${encodeURIComponent(pp)}/${(cents / 100).toFixed(2)}EUR` : ''; };
+  const whyList = (d, perspective) => `<details class="pp__why"><summary class="meta">Warum? · ${d.items.length} ${d.items.length === 1 ? 'Posten' : 'Posten'} ▾</summary><ul>${d.items.map((it) => `
+      <li><span class="meta">${esc(fmt(it.date, { day: '2-digit', month: '2-digit' }))}</span>
+        <span><span class="label">${esc(it.title)}</span><span class="meta meta--hell">${esc(it.why)}</span></span>
+        <b class="${it.amount < 0 ? 'is-neg' : ''}">${it.amount < 0 ? '−' : '+'}${euro(Math.abs(it.amount))}</b></li>`).join('')}
+      <li class="pp__sum"><span></span><span class="label">${perspective}</span><b>${euro(d.amount)}</b></li></ul></details>`;
+
+  const canConfirm = (b) => b.kind === 'move' && b.status === 'pending' && (b.to ? b.to === S.me.id : b.from !== S.me.id);
+  const pendingFor = (from, to) => K.items.filter((b) => b.kind === 'move' && b.status === 'pending' && b.from === from && b.to === to);
   function renderDebts() {
     const me = S.me.id;
-    const mineIn = K.debts.filter((d) => d.creditor === me), mineOut = K.debts.filter((d) => d.debtor === me);
-    const sumIn = mineIn.reduce((a, d) => a + d.amount, 0), sumOut = mineOut.reduce((a, d) => a + d.amount, 0);
-    $('#k-me').innerHTML = `<div class="schulden__kpi is-minus"><span class="meta">Du schuldest</span><b>${euro(sumOut)}</b></div>
-      <div class="schulden__kpi is-plus"><span class="meta">Dir schulden</span><b>${euro(sumIn)}</b></div>`;
-    const list = K.scope === 'me' ? K.debts.filter((d) => d.debtor === me || d.creditor === me) : K.debts;
-    $('#k-debts').innerHTML = list.map((d, i) => {
-      const iOwe = d.debtor === me, owedMe = d.creditor === me;
-      const head = iOwe ? `Du schuldest <b>${esc(who(d.creditor))}</b>` : owedMe ? `<b>${esc(who(d.debtor))}</b> schuldet dir` : `<b>${esc(who(d.debtor))}</b> schuldet <b>${esc(who(d.creditor))}</b>`;
-      return `<li class="schuld ${iOwe ? 'is-minus' : owedMe ? 'is-plus' : ''}">
-        <details>
-          <summary>${whoAv(d.debtor)}<span class="schuld__pfeil" aria-hidden="true">→</span>${whoAv(d.creditor)}
-            <span class="schuld__text">${head}</span><b class="schuld__betrag">${euro(d.amount)}</b><span class="schuld__chev" aria-hidden="true">▾</span></summary>
-          <ul class="schuld__items">${d.items.map((it) => `<li><span class="meta">${esc(fmt(it.date, { day: '2-digit', month: '2-digit', year: '2-digit' }))}</span>
-            <span><span class="label">${esc(it.title)}</span><span class="meta meta--hell">${esc(it.why)}</span></span>
-            <b class="${it.amount < 0 ? 'is-neg' : ''}">${it.amount < 0 ? '−' : '+'}${euro(Math.abs(it.amount))}</b></li>`).join('')}
-            <li class="schuld__summe"><span></span><span class="label">Offen</span><b>${euro(d.amount)}</b></li>
-          </ul>
-          <button type="button" class="btn btn--klein btn--patina" data-k-paid="${i}">Als bezahlt markieren</button>
-        </details>
+    // Gemeldete Zahlungen, die ich bestätigen soll
+    const toConfirm = K.items.filter(canConfirm);
+    const conf = $('#k-confirm');
+    conf.hidden = !toConfirm.length;
+    conf.innerHTML = toConfirm.length ? `<span class="meta">Bitte bestätigen · ${toConfirm.length} ${toConfirm.length === 1 ? 'Zahlung' : 'Zahlungen'}</span>` + toConfirm.map((b) => `
+      <div class="k-confirm__row">${whoAv(b.from)}<span><b>${esc(who(b.from))}</b> hat ${b.to ? 'dir' : 'der Bandkasse'} <b>${euro(b.amount)}</b>${b.note ? ' per ' + esc(b.note) : ''} gezahlt<span class="meta meta--hell"> · gemeldet am ${esc(fmt(b.date, { day: '2-digit', month: '2-digit' }))}</span></span>
+        <span class="k-confirm__btns"><button type="button" class="btn btn--klein btn--patina" data-k-confirm="${b.id}" data-ok="1">✓ Erhalten</button><button type="button" class="btn btn--klein" data-k-confirm="${b.id}" data-ok="0">Nicht angekommen</button></span></div>`).join('') : '';
+    const pay = K.debts.filter((d) => d.debtor === me), get = K.debts.filter((d) => d.creditor === me);
+    const sumPay = pay.reduce((a, d) => a + d.amount, 0), sumGet = get.reduce((a, d) => a + d.amount, 0);
+    const net = sumGet - sumPay;
+    $('#k-me').innerHTML = `<span class="meta">Dein Stand</span>
+      <p class="mein-stand__satz">${!sumPay && !sumGet ? 'Du bist mit allen quitt ✓' : net > 0 ? `Du bekommst <b class="is-plus">${euro(net)}</b>` : net < 0 ? `Du schuldest <b class="is-minus">${euro(-net)}</b>` : 'Unterm Strich ausgeglichen'}</p>
+      ${sumPay && sumGet ? `<span class="meta meta--hell">Du zahlst ${euro(sumPay)} · du bekommst ${euro(sumGet)}</span>` : ''}`;
+
+    K.shown = [];
+    const card = (d, mode) => {
+      const i = K.shown.push(d) - 1;
+      const other = mode === 'pay' ? d.creditor : d.debtor;
+      const pend = pendingFor(d.debtor, d.creditor), pendSum = pend.reduce((a, b) => a + b.amount, 0);
+      const pp = mode === 'pay' && other ? paypalUrl(other, d.amount) : '';
+      const waiting = pendSum ? `<p class="pp__wait">⏳ ${euro(pendSum)} gemeldet${pend[0].note ? ' (' + esc(pend[0].note) + ')' : ''} · wartet auf Bestätigung ${mode === 'pay' ? 'von ' + esc(who(other)) : 'durch dich (oben)'}</p>` : '';
+      const actions = pendSum >= d.amount ? '' : mode === 'pay'
+        ? (other
+          ? `${pp ? `<a class="btn btn--klein btn--patina" href="${esc(pp)}" target="_blank" rel="noopener" data-k-pp="${i}">PayPal ${euro(d.amount)} ↗</a>` : ''}
+             <button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="Bar">Bar bezahlt</button>`
+          : `<button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="Bar">In die Kasse gezahlt</button>`)
+        : `<button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="Bar">Bar erhalten</button>
+           <button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="PayPal">PayPal erhalten</button>`;
+      return `<li class="pp ${mode === 'pay' ? 'is-minus' : 'is-plus'}" data-k-i="${i}">
+        <div class="pp__head">${whoAv(other)}<span class="pp__name">${mode === 'pay' ? 'an' : 'von'} <b>${esc(who(other))}</b></span><b class="pp__amount">${euro(d.amount)}</b></div>
+        ${waiting}
+        ${actions ? `<div class="pp__actions">${actions}</div>` : ''}
+        <div class="pp__confirm" hidden><span class="meta">PayPal-Zahlung abgeschlossen?</span><button type="button" class="btn btn--klein btn--patina" data-k-settle-i="${i}" data-method="PayPal">✓ Ja, als bezahlt buchen</button></div>
+        ${mode === 'pay' && other && !member(other).paypal ? `<span class="meta meta--hell">${esc(who(other))} hat noch keinen PayPal-Link im Profil.</span>` : ''}
+        ${whyList(d, mode === 'pay' ? 'Du zahlst' : 'Du bekommst')}
       </li>`;
-    }).join('') || `<li class="leer">${K.scope === 'me' ? 'Du bist mit allen quitt. 🤘' : 'Alle sind quitt. 🤘'}</li>`;
-    $('#k-debts').dataset.scope = K.scope;
-    K.shown = list;
+    };
+    $('#k-pay').innerHTML = pay.map((d) => card(d, 'pay')).join('') || '<li class="leer">Du schuldest niemandem etwas. 🤘</li>';
+    $('#k-get').innerHTML = get.map((d) => card(d, 'get')).join('') || '<li class="leer">Dir schuldet gerade niemand etwas.</li>';
+
+    const others = K.debts.filter((d) => d.debtor !== me && d.creditor !== me);
+    $('#k-band-sum').textContent = `Alle anderen offenen Beträge in der Band (${others.length}) ▾`;
+    $('#k-debts').innerHTML = others.map((d) => {
+      const i = K.shown.push(d) - 1;
+      return `<li class="pp">
+        <div class="pp__head">${whoAv(d.debtor)}<span class="pp__name"><b>${esc(who(d.debtor))}</b> → <b>${esc(who(d.creditor))}</b></span><b class="pp__amount">${euro(d.amount)}</b></div>
+        <div class="pp__actions"><button type="button" class="btn btn--klein" data-k-settle-i="${i}" data-method="Bar">Als bezahlt markieren</button></div>
+        ${whyList(d, 'Offen')}
+      </li>`;
+    }).join('') || '<li class="leer">Sonst ist niemand etwas schuldig.</li>';
+
+    const tipp = $('#k-tipp');
+    tipp.hidden = !!S.me.paypal || !get.length;
+    tipp.innerHTML = 'Tipp: Hinterlege unter <button class="link" data-goto="profil">Mein Profil</button> deinen PayPal.me-Namen, dann können dir die anderen mit einem Klick senden.';
   }
   document.addEventListener('click', async (e) => {
-    const sc = e.target.closest('[data-k-scope]');
-    if (sc) { K.scope = sc.dataset.kScope; $$('[data-k-scope]').forEach((b) => b.classList.toggle('is-on', b === sc)); renderDebts(); return; }
-    const pd = e.target.closest('[data-k-paid]');
-    if (pd) {
-      const d = K.shown[+pd.dataset.kPaid]; if (!d) return;
-      if (!confirm(`${who(d.debtor)} hat ${who(d.creditor)} ${euro(d.amount)} gegeben? Das wird als Ausgleich gebucht.`)) return;
-      try {
-        await api('cash', { method: 'POST', body: { kind: 'move', amount: (d.amount / 100).toFixed(2), date: new Date().toISOString().slice(0, 10), from: d.debtor, to: d.creditor, title: `Ausgleich ${who(d.debtor)} → ${who(d.creditor)}` } });
-        await loadCash(); toast('Als bezahlt gebucht ✓');
-      } catch (err) { toast(err.message); }
+    const pp = e.target.closest('[data-k-pp]');
+    if (pp) { const li = pp.closest('.pp'); setTimeout(() => { li.querySelector('.pp__confirm').hidden = false; }, 400); return; } // Link öffnet PayPal, danach bestätigen
+    const cf = e.target.closest('[data-k-confirm]');
+    if (cf) {
+      const ok = cf.dataset.ok === '1';
+      if (!ok && !confirm('Zahlung als „nicht angekommen“ markieren? Die Schuld bleibt dann offen.')) return;
+      try { await api(`cash/${cf.dataset.kConfirm}/confirm`, { method: 'POST', body: { ok } }); await loadCash(); toast(ok ? 'Bestätigt ✓' : 'Als nicht angekommen markiert'); }
+      catch (err) { toast(err.message); }
+      return;
     }
+    const st = e.target.closest('[data-k-settle-i]');
+    if (!st) return;
+    const d = K.shown[+st.dataset.kSettleI]; if (!d) return;
+    const method = st.dataset.method;
+    if (!confirm(`${who(d.debtor)} hat ${who(d.creditor)} ${euro(d.amount)} ${method === 'PayPal' ? 'per PayPal' : 'bar'} gegeben?`)) return;
+    try {
+      const r = await api('cash', { method: 'POST', body: { kind: 'move', amount: (d.amount / 100).toFixed(2), date: new Date().toISOString().slice(0, 10), from: d.debtor, to: d.creditor, title: `Ausgleich ${who(d.debtor)} → ${who(d.creditor)}`, note: method } });
+      await loadCash();
+      toast(r.status === 'pending' ? `Gemeldet ✓ · ${d.creditor ? who(d.creditor) : 'Ein anderes Mitglied'} muss noch bestätigen` : `Gebucht ✓ · ${who(d.debtor)} und ${who(d.creditor)} sind quitt`);
+    } catch (err) { toast(err.message); }
   });
 
   // Formular
@@ -1216,7 +1267,7 @@
     const me = S.me;
     const set = (id, v) => { const el = $(id); if (el && (force || document.activeElement !== el)) el.value = v || ''; };
     if (force || !$('#pf-about').dataset.filled) {
-      set('#pf-first', me.first); set('#pf-last', me.last); set('#pf-role', me.role); set('#pf-mail', me.email);
+      set('#pf-first', me.first); set('#pf-last', me.last); set('#pf-role', me.role); set('#pf-paypal', me.paypal); set('#pf-mail', me.email);
       $('#pf-about').dataset.filled = '1';
     }
     $('#pf-login').value = me.login;
@@ -1231,7 +1282,7 @@
     btn.disabled = false;
   }
   $('#pf-about').addEventListener('submit', (e) => { e.preventDefault(); submit(e.target, async () => {
-    S.me = await api('profile', { method: 'POST', body: { first: $('#pf-first').value.trim(), last: $('#pf-last').value.trim(), role: $('#pf-role').value.trim() } });
+    S.me = await api('profile', { method: 'POST', body: { first: $('#pf-first').value.trim(), last: $('#pf-last').value.trim(), role: $('#pf-role').value.trim(), paypal: $('#pf-paypal').value.trim() } });
     await load(); renderProfile(true); toast('Gespeichert');
   }); });
   $('#pf-n-versions').addEventListener('change', async (e) => {
