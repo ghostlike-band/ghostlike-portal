@@ -463,3 +463,16 @@ textarea.lyrics { font-family: var(--f-mono); font-size: 13px; line-height: 1.6;
   .history__item { grid-template-columns: 42px auto minmax(0, 1fr); }
   .history__change { grid-column: 3; justify-self: start; }
 }
+
+/* Kalender am Handy: Datum als eigene Zeile über den Infos (mehr Luft) */
+@media (max-width: 900px) {
+  .cal li { grid-template-columns: 96px minmax(0, 1fr); column-gap: 20px; }
+  .cal__date b { font-size: 22px; }
+}
+@media (max-width: 600px) {
+  .cal li { grid-template-columns: minmax(0, 1fr); row-gap: 10px; padding: 18px 0; }
+  .cal__date { display: flex; align-items: baseline; gap: 10px; }
+  .cal__date b { font-size: 24px; }
+  .cal__info { gap: 6px; }
+  .cal li > :last-child { grid-column: auto; }
+}
