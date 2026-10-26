@@ -21,9 +21,23 @@ function glp_plays_releases() {
 			'title' => 'The Quiet Collapse',
 			'type'  => 'EP',
 			'date'  => '2026-01-16',
+			'cover' => 16, // Mediathek: Cover – The Quiet Collapse
 			'isrcs' => array( 'CH6542570736', 'CH6542570739', 'CH6542570737', 'CH6542570742', 'CH6542570741' ),
 		),
 	);
+}
+
+/** Cover pro Song (Mediathek-ID). Songs ohne eigenes Cover bekommen das Cover ihrer EP. */
+function glp_plays_covers() {
+	return array(
+		'CH6542570736' => 17, // Nothing's Okay – Single-Cover Hand
+		'CH6542570737' => 19, // Deep Blue Sea – Single-Cover Eis
+		'CH6542570739' => 18, // The Price We Pay – Single-Cover Dornen
+	);
+}
+
+function glp_plays_cover_url( $id ) {
+	return $id ? ( wp_get_attachment_image_url( (int) $id, 'thumbnail' ) ?: '' ) : '';
 }
 
 function glp_plays_norm( $title ) {
@@ -153,6 +167,21 @@ function glp_rest_plays() {
 	$out['start']     = $start->format( 'Y-m-d' );
 	$out['tracks']    = array_values( $tracks );
 	$out['spotifyAt'] = ! empty( $spall['at'] ) ? wp_date( 'd.m.Y', $spall['at'] ) : '';
-	$out['releases']  = glp_plays_releases();
+	$covers   = glp_plays_covers();
+	$releases = glp_plays_releases();
+	foreach ( $releases as &$rel ) {
+		$rel['cover'] = glp_plays_cover_url( $rel['cover'] ?? 0 );
+	}
+	unset( $rel );
+	foreach ( $out['tracks'] as &$tr ) {
+		$tr['cover'] = glp_plays_cover_url( $covers[ $tr['isrc'] ] ?? 0 );
+		foreach ( $releases as $rel ) {
+			if ( ! $tr['cover'] && in_array( $tr['isrc'], $rel['isrcs'], true ) ) {
+				$tr['cover'] = $rel['cover'];
+			}
+		}
+	}
+	unset( $tr );
+	$out['releases'] = $releases;
 	return glp_ok( $out );
 }

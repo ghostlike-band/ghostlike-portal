@@ -1276,6 +1276,7 @@
       const tot = plSum(songs.map((t) => t.total)), l7 = plSum(daily.slice(-7)), p7 = plSum(daily.slice(-14, -7)), x = trend(l7, p7), key = 'rel:' + r.title, open = P.open === key;
       return `<h2 class="meta pl-h">${esc(r.type)}</h2><ul class="pl-list pl-list--rel"><li class="pl-row pl-row--rel ${open ? 'is-open' : ''}">
         <button type="button" class="pl-row__head" data-pl="${esc(key)}">
+${r.cover ? `<img class="pl-cover" src="${esc(r.cover)}" alt="" loading="lazy" width="150" height="150">` : '<span class="pl-cover pl-cover--leer"></span>'}
           <span class="pl-row__title"><span class="label">${esc(r.title)}</span><span class="meta pl-row__sub">${songs.length} Songs · seit ${esc(fmt(r.date, { day: '2-digit', month: '2-digit', year: 'numeric' }))}</span></span>
           <span class="pl-row__spark">${bars(daily.slice(-30), 120, 28, 'pl-bars--spark')}</span>
           <span class="pl-row__week meta">+${plNum(l7)}${p7 || l7 ? ` <i class="${x >= 0 ? 'is-up' : 'is-down'}">${x >= 0 ? '▲' : '▼'}</i>` : ''}</span>
@@ -1292,6 +1293,7 @@
       const l7 = plSum(t.daily.slice(-7)), p7 = plSum(t.daily.slice(-14, -7)), x = trend(l7, p7), open = P.open === t.isrc;
       return `<li class="pl-row ${open ? 'is-open' : ''}">
         <button type="button" class="pl-row__head" data-pl="${esc(t.isrc)}">
+${t.cover ? `<img class="pl-cover" src="${esc(t.cover)}" alt="" loading="lazy" width="150" height="150">` : '<span class="pl-cover pl-cover--leer"></span>'}
           <span class="pl-row__title label">${esc(t.title)}</span>
           <span class="pl-row__spark">${bars(t.daily.slice(-30), 120, 28, 'pl-bars--spark')}</span>
           <span class="pl-row__week meta">+${plNum(l7)}${p7 || l7 ? ` <i class="${x >= 0 ? 'is-up' : 'is-down'}">${x >= 0 ? '▲' : '▼'}</i>` : ''}</span>
