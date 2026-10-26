@@ -100,6 +100,7 @@
     scrollTo(0, 0);
     if (view === 'kasse' && typeof loadCash === 'function') loadCash();
     if (view === 'profil') setTimeout(renderPush);
+    if (view === 'plays') setTimeout(loadPlays);
   }
   $$('.side__nav button').forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
   document.addEventListener('click', (e) => { const g = e.target.closest('[data-goto]'); if (g) show(g.dataset.goto); });
@@ -1225,6 +1226,105 @@
     else deleteCash(b); // Ausgleiche und alte Beiträge kann man nur löschen
   });
 
+  /* ================= PLAYS ================= */
+  const P = { data: null, open: null, done: {} };
+  const plNum = (n) => Number(n || 0).toLocaleString('de-DE');
+  const plSum = (a) => a.reduce((x, y) => x + y, 0);
+  // Balken als SVG, ohne Bibliothek
+  function bars(vals, w, h, cls = '') {
+    const max = Math.max(1, ...vals), bw = w / vals.length;
+    return `<svg class="pl-bars ${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${vals.map((v, i) => v ? `<rect x="${(i * bw).toFixed(2)}" y="${(h - (v / max) * h).toFixed(2)}" width="${Math.max(bw - (bw > 3 ? 1 : 0), 0.6).toFixed(2)}" height="${((v / max) * h).toFixed(2)}"/>` : '').join('')}</svg>`;
+  }
+  const plDay = (iso) => fmt(iso, { day: '2-digit', month: '2-digit' });
+
+  async function loadPlays() {
+    try { P.data = await api('plays'); renderPlays(); } catch (err) { toast(err.message); }
+  }
+  function renderPlays() {
+    const d = P.data; if (!d) return;
+    $('#pl-bookmarklet').href = bookmarklet();
+    if (!d.tracks.length) {
+      $('#pl-top').innerHTML = '<p class="k-satz">Noch keine Zahlen</p><p class="meta">Einmal den Sync-Button einrichten (unten), dann erscheinen hier alle Songs.</p>';
+      $('#pl-chart').innerHTML = ''; $('#pl-list').innerHTML = ''; $('#pl-help').open = true; return;
+    }
+    const all = d.tracks.reduce((acc, t) => acc.map((v, i) => v + t.daily[i]), new Array(365).fill(0));
+    const total = plSum(d.tracks.map((t) => t.total)), last7 = plSum(all.slice(-7)), prev7 = plSum(all.slice(-14, -7)), last30 = plSum(all.slice(-30));
+    const trend = (a, b) => (b ? Math.round(((a - b) / b) * 100) : 0);
+    const tr = trend(last7, prev7);
+    $('#pl-top').innerHTML = `<p class="k-satz">${plNum(total)} <span class="pl-unit">Plays</span></p>
+      <div class="pl-kpis"><span><b>${plNum(all[364])}</b><span class="meta">am ${esc(plDay(d.latest))}</span></span>
+        <span><b>${plNum(last7)}</b><span class="meta">7 Tage ${prev7 ? `<i class="${tr >= 0 ? 'is-up' : 'is-down'}">${tr >= 0 ? '▲' : '▼'} ${Math.abs(tr)} %</i>` : ''}</span></span>
+        <span><b>${plNum(last30)}</b><span class="meta">30 Tage</span></span></div>
+      <p class="meta meta--hell">Spotify + Apple Music · Stand ${esc(plDay(d.latest))} · zuletzt geholt ${esc(d.synced)}${d.syncedBy ? ' von ' + esc(d.syncedBy) : ''}</p>`;
+    $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
+    $('#pl-list').innerHTML = d.tracks.map((t) => {
+      const l7 = plSum(t.daily.slice(-7)), p7 = plSum(t.daily.slice(-14, -7)), x = trend(l7, p7), open = P.open === t.isrc;
+      return `<li class="pl-row ${open ? 'is-open' : ''}">
+        <button type="button" class="pl-row__head" data-pl="${esc(t.isrc)}">
+          <span class="pl-row__title label">${esc(t.title)}</span>
+          <span class="pl-row__spark">${bars(t.daily.slice(-30), 120, 28, 'pl-bars--spark')}</span>
+          <span class="pl-row__week meta">+${plNum(l7)}${p7 || l7 ? ` <i class="${x >= 0 ? 'is-up' : 'is-down'}">${x >= 0 ? '▲' : '▼'}</i>` : ''}</span>
+          <b class="pl-row__total">${plNum(t.total)}</b>
+        </button>
+        ${open ? `<div class="pl-row__detail">
+          <div class="pl-chart__head meta"><span>Spotify pro Tag · 365 Tage</span><span>max ${plNum(Math.max(...t.daily))}</span></div>
+          ${bars(t.daily, 900, 90)}
+          <div class="pl-split meta"><span>Spotify <b>${plNum(t.spotify)}</b></span><span>Apple Music <b>${plNum(t.apple)}</b></span><span>30 Tage <b>${plNum(plSum(t.daily.slice(-30)))}</b></span><span>Bester Tag <b>${plNum(Math.max(...t.daily))}</b></span></div>
+        </div>` : ''}
+      </li>`;
+    }).join('');
+  }
+  const plAdd = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  $('#pl-list').addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (!b) return; P.open = P.open === b.dataset.pl ? null : b.dataset.pl; renderPlays(); });
+  $('#pl-help-open').addEventListener('click', () => { const h = $('#pl-help'); h.open = true; h.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
+  // Sync: Das Lesezeichen auf distrokid.com öffnet das Portal (?plays_sync=1) und schickt die Zahlen per postMessage
+  if (new URLSearchParams(location.search).has('plays_sync')) {
+    const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Warte auf die Zahlen von DistroKid …';
+  }
+  window.addEventListener('message', async (e) => {
+    if (e.origin !== 'https://distrokid.com' || !e.data || e.data.type !== 'gl-plays' || P.done[e.data.id]) return;
+    P.done[e.data.id] = true;
+    const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Übernehme Zahlen …';
+    let msg;
+    try {
+      const r = await api('plays/import', { method: 'POST', body: { tracks: e.data.tracks } });
+      msg = `✓ ${r.tracks} Songs aktualisiert. Du kannst den DistroKid-Tab schließen.`;
+      show('plays'); await loadPlays();
+    } catch (err) { msg = 'Fehler: ' + err.message; }
+    b.textContent = msg;
+    try { e.source.postMessage({ type: 'gl-plays-ok', id: e.data.id, msg }, e.origin); } catch (err) {}
+    setTimeout(() => { b.hidden = true; }, 8000);
+  });
+
+  function bookmarklet() {
+    const portal = location.origin + CFG.scope + '?plays_sync=1#plays';
+    const code = `(async()=>{const O=${JSON.stringify(location.origin)},P=${JSON.stringify(portal)};
+if(!/(^|\\.)distrokid\\.com$/.test(location.hostname)){alert('Bitte zuerst distrokid.com öffnen und einloggen, dann nochmal klicken.');return;}
+const w=window.open(P,'glsync');
+const note=t=>{let b=document.getElementById('glsync');if(!b){b=document.createElement('div');b.id='glsync';b.style.cssText='position:fixed;z-index:2147483647;top:16px;right:16px;max-width:340px;background:#0A0B0A;color:#ECEEE8;border-left:4px solid #7C9A85;padding:14px 18px;font:14px/1.4 Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.4)';document.body.appendChild(b);}b.textContent=t;};
+try{note('GHOSTLIKE Sync: lese Tracks …');
+const doc=new DOMParser().parseFromString(await(await fetch('/stats/')).text(),'text/html');
+const seen={},tracks=[];
+for(const o of doc.querySelectorAll('select.trendingFilterTracks option')){const t=o.textContent.replace(/\\s+/g,' ').trim();if(!/^Ghostlike - /i.test(t)||!o.value||!o.id||seen[o.value])continue;seen[o.value]=1;tracks.push({isrc:o.value,id:o.id,title:t.replace(/^Ghostlike - /i,'').replace(/ - Single$/i,'')});}
+if(!tracks.length)throw new Error('Keine Ghostlike-Tracks gefunden.');
+const arr=(h,re)=>{const m=h.match(re);return m?JSON.parse(m[1]):[];};
+for(const [i,t] of tracks.entries()){note('GHOSTLIKE Sync: '+(i+1)+'/'+tracks.length+' · '+t.title);
+const u='/stats/?type=track&id='+t.id+'&upc=undefined&view='+t.isrc+'&data=';
+const s=await(await fetch(u+'streams')).text();const k=s.indexOf('makeChart("trend60day"');
+t.spotify={};(k<0?[]:arr(s.slice(k),/"dataProvider":\\s*(\\[[^\\]]*\\])/)).forEach(p=>{t.spotify[p.category]=p['column-1'];});
+const a=await(await fetch(u+'applemusic')).text();
+t.apple={};arr(a,/"dataProvider":\\s*(\\[\\s*\\{"field"[^\\]]*\\])/).forEach(p=>{const [m,y]=p.field.split('-');t.apple['20'+y+'-'+m]=p.value;});
+delete t.id;}
+note('GHOSTLIKE Sync: sende ans Portal …');
+const id=Date.now();let ok=false;
+window.addEventListener('message',e=>{if(e.origin===O&&e.data&&e.data.type==='gl-plays-ok'&&e.data.id===id){ok=true;note(e.data.msg);}});
+for(let i=0;i<60&&!ok;i++){if(w&&!w.closed)w.postMessage({type:'gl-plays',id,tracks},O);await new Promise(r=>setTimeout(r,1000));}
+if(!ok)note('Das Portal hat nicht geantwortet. Bitte im Portal eingeloggt sein und nochmal klicken.');
+}catch(e){note('GHOSTLIKE Sync – Fehler: '+e.message);}})();`;
+    return 'javascript:' + encodeURIComponent(code.replace(/\n/g, ''));
+  }
+
   /* ================= PROFIL ================= */
   function renderProfile(force) {
     const me = S.me;
@@ -1348,7 +1448,7 @@
       $('#loading').hidden = true;
       setStudioView(studioView);
       let view = (location.hash || '').slice(1);
-      if (!['home', 'kalender', 'studio', 'kasse', 'pool', 'pr', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
+      if (!['home', 'kalender', 'studio', 'kasse', 'plays', 'profil'].includes(view)) { try { view = sessionStorage.getItem('glp-view') || 'home'; } catch (e) { view = 'home'; } }
       show(view);
       // Link aus der Mail: /portal/?song=7#studio → Song direkt öffnen
       const sid = +new URLSearchParams(location.search).get('song');

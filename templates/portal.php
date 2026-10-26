@@ -85,8 +85,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<button data-view="kalender"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="meta">02</span><span class="side__long">Kalender</span><span class="side__short">Kalender</span></button>
 			<button data-view="studio"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg><span class="meta">03</span><span class="side__long">Studio</span><span class="side__short">Studio</span></button>
 			<button data-view="kasse"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="1"/><path d="M3 10h18M16 15h2"/></svg><span class="meta">04</span><span class="side__long">Bandkasse</span><span class="side__short">Kasse</span></button>
-			<button data-view="pool"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg><span class="meta">05</span><span class="side__long">Pressepool</span><span class="side__short">Presse</span></button>
-			<button data-view="pr"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4h4l6 4V6L7 10zM17 9a4 4 0 0 1 0 6M19.5 6.5a8 8 0 0 1 0 11"/></svg><span class="meta">06</span><span class="side__long">PR</span><span class="side__short">PR</span></button>
+			<button data-view="plays"><svg class="side__ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M9.5 20V4M15 20v-7M20.5 20V8"/></svg><span class="meta">05</span><span class="side__long">Plays</span><span class="side__short">Plays</span></button>
 		</nav>
 		<div class="side__user">
 			<button class="avatar avatar--knopf" id="me-avatar" data-goto="profil" title="Mein Profil" aria-label="Mein Profil"></button>
@@ -362,16 +361,28 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			</details>
 		</section>
 
-		<!-- ===== PRESSEPOOL ===== -->
-		<section class="view" data-view="pool" hidden>
-			<header class="view__head"><span class="meta">05 — In Planung</span><h1 class="display-l">Presse&shy;pool</h1></header>
-			<p class="coming meta meta--hell">Kommt als nächste Ausbaustufe: Upload, Kategorien nach Ära, ZIP-Download, Haken „öffentlich“ → erscheint automatisch im Pressekit der Website.</p>
-		</section>
-
-		<!-- ===== PR ===== -->
-		<section class="view" data-view="pr" hidden>
-			<header class="view__head"><span class="meta">06 — In Planung</span><h1 class="display-l">PR-Zen&shy;trale</h1></header>
-			<p class="coming meta meta--hell">Kommt danach: Kontakte &amp; Verlauf, Kampagnen mit Vorlagen im CI-Look, persönliche Release-Links pro Empfänger (gesehen / gehört / geladen), Follow-up-Erinnerungen.</p>
+		<!-- ===== PLAYS ===== -->
+		<section class="view plays" data-view="plays" hidden>
+			<header class="view__head view__head--row">
+				<div><span class="meta">05 — Streaming</span><h1 class="display-l">Plays</h1></div>
+				<div class="actions"><button class="btn btn--klein" type="button" id="pl-help-open">Zahlen aktualisieren</button></div>
+			</header>
+			<div class="pl-banner" id="pl-banner" hidden></div>
+			<div class="pl-top" id="pl-top"></div>
+			<div class="pl-chart" id="pl-chart"></div>
+			<ul class="pl-list" id="pl-list"></ul>
+			<details class="k-more" id="pl-help">
+				<summary class="meta">Zahlen aktualisieren · Sync-Button einrichten ▾</summary>
+				<div class="pl-help">
+					<p>Die Zahlen kommen aus <b>DistroKid</b> (Spotify täglich, Apple Music monatlich, von DistroKid geschätzt). DistroKid hat keine Schnittstelle, deshalb holt ein Sync-Button sie aus deinem eingeloggten Browser. Ein Klick alle paar Tage reicht, die Zahlen sammeln sich hier an.</p>
+					<ol>
+						<li>Am Computer in Chrome: Lesezeichenleiste einblenden (<span class="meta">⌘ + Shift + B</span>).</li>
+						<li>Diesen Knopf in die Lesezeichenleiste ziehen: <a class="btn btn--klein btn--patina pl-bm" id="pl-bookmarklet" href="#" onclick="return false">GL Plays Sync</a></li>
+						<li>Bei <b>distrokid.com</b> einloggen und in der Leiste auf <b>GL Plays Sync</b> klicken. Das Portal öffnet sich in einem neuen Tab und übernimmt die Zahlen.</li>
+					</ol>
+					<p class="klein">Es werden nur die Ghostlike-Tracks übernommen. Dein DistroKid-Passwort bleibt in deinem Browser, das Portal speichert es nie.</p>
+				</div>
+			</details>
 		</section>
 	</main>
 </div>

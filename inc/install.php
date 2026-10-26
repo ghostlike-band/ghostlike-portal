@@ -109,6 +109,16 @@ function glp_install() {
 		KEY created_at (created_at)
 	) $c;" );
 
+	// Streaming-Zahlen aus DistroKid: pro Track (ISRC), Dienst und Tag (Apple Music: Monatswert am 1.)
+	dbDelta( "CREATE TABLE " . glp_table( 'plays' ) . " (
+		isrc varchar(20) NOT NULL DEFAULT '',
+		service varchar(12) NOT NULL DEFAULT '',
+		day date NOT NULL,
+		plays int(10) unsigned NOT NULL DEFAULT 0,
+		PRIMARY KEY  (isrc,service,day),
+		KEY day (day)
+	) $c;" );
+
 	// Bandkasse: Buchungen (Beträge in Cent)
 	dbDelta( "CREATE TABLE " . glp_table( 'cash' ) . " (
 		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
