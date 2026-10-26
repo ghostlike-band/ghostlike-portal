@@ -1244,10 +1244,10 @@
   }
   function renderPlays() {
     const d = P.data; if (!d) return;
-    $('#pl-bookmarklet').href = bookmarklet();
+    if ($('#pl-bookmarklet')) $('#pl-bookmarklet').href = bookmarklet();
     if (!d.tracks.length) {
-      $('#pl-top').innerHTML = '<p class="k-satz">Noch keine Zahlen</p><p class="meta">Einmal den Sync-Button einrichten (unten), dann erscheinen hier alle Songs.</p>';
-      $('#pl-chart').innerHTML = ''; $('#pl-list').innerHTML = ''; $('#pl-help').open = true; return;
+      $('#pl-top').innerHTML = `<p class="k-satz">Noch keine Zahlen</p><p class="meta">${S.me.admin ? 'Einmal den Sync-Button einrichten (unten), dann erscheinen hier alle Songs.' : 'Die Zahlen werden gerade eingerichtet und erscheinen hier nach dem ersten Abgleich.'}</p>`;
+      $('#pl-chart').innerHTML = ''; $('#pl-list').innerHTML = ''; if ($('#pl-help')) $('#pl-help').open = true; return;
     }
     const all = d.tracks.reduce((acc, t) => acc.map((v, i) => v + t.daily[i]), new Array(365).fill(0));
     const total = plSum(d.tracks.map((t) => t.total)), last7 = plSum(all.slice(-7)), prev7 = plSum(all.slice(-14, -7)), last30 = plSum(all.slice(-30));
@@ -1264,7 +1264,7 @@
       <dl class="pl-info">
         <dt class="meta">Stand</dt><dd>${lastSync ? `Zuletzt aktualisiert ${esc(lastSync.at)} von ${esc(lastSync.by)} · Tageswerte bis ${esc(plDay(d.latest))}` : '–'}</dd>
         <dt class="meta">Dienste</dt><dd class="pl-chips">${shops.map((x) => `<span class="pl-chip">${esc(x)}</span>`).join('')}</dd>
-        <dt class="meta">Quellen</dt><dd>${src.map(([k, l, what]) => `<span class="pl-src ${!d.synced[k] || stale(d.synced[k]) ? 'is-stale' : ''}">${l} <span class="meta">${d.synced[k] ? esc(d.synced[k].at.split(',')[0]) : 'noch nie'}</span></span>`).join('')}
+        <dt class="meta">Quellen</dt><dd>${src.map(([k, l, what]) => `<span class="pl-src ${S.me.admin && (!d.synced[k] || stale(d.synced[k])) ? 'is-stale' : ''}">${l} <span class="meta">${d.synced[k] ? esc(d.synced[k].at.split(',')[0]) : 'noch nie'}</span></span>`).join('')}
           <span class="klein pl-note">Spotify-Gesamtzahl laut Spotify-Profil, alle anderen Dienste laut DistroKid und iMusician.</span></dd>
       </dl>`;
     $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · alle Shops · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
@@ -1288,7 +1288,7 @@
   }
   const plAdd = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   $('#pl-list').addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (!b) return; P.open = P.open === b.dataset.pl ? null : b.dataset.pl; renderPlays(); });
-  $('#pl-help-open').addEventListener('click', () => { const h = $('#pl-help'); h.open = true; h.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  if ($('#pl-help-open')) $('#pl-help-open').addEventListener('click', () => { const h = $('#pl-help'); h.open = true; h.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
   // Sync: Das Lesezeichen auf distrokid.com öffnet das Portal (?plays_sync=1) und schickt die Zahlen per postMessage
   if (new URLSearchParams(location.search).has('plays_sync')) {

@@ -365,12 +365,15 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 		<section class="view plays" data-view="plays" hidden>
 			<header class="view__head view__head--row">
 				<div><span class="meta">05 — Streaming</span><h1 class="display-l">Plays</h1></div>
+				<?php if ( current_user_can( 'manage_options' ) ) : // Zahlen holt nur der Admin ?>
 				<div class="actions"><button class="btn btn--klein" type="button" id="pl-help-open">Zahlen aktualisieren</button></div>
+				<?php endif; ?>
 			</header>
 			<div class="pl-banner" id="pl-banner" hidden></div>
 			<div class="pl-top" id="pl-top"></div>
 			<div class="pl-chart" id="pl-chart"></div>
 			<ul class="pl-list" id="pl-list"></ul>
+			<?php if ( current_user_can( 'manage_options' ) ) : ?>
 			<details class="k-more" id="pl-help">
 				<summary class="meta">Zahlen aktualisieren · Sync-Button einrichten ▾</summary>
 				<div class="pl-help">
@@ -391,6 +394,7 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 					<p class="klein">Es werden nur die Ghostlike-Songs übernommen. Deine Passwörter bleiben in deinem Browser, das Portal speichert sie nie. Ein Sync alle paar Tage reicht, die Zahlen sammeln sich hier an.</p>
 				</div>
 			</details>
+			<?php endif; ?>
 		</section>
 	</main>
 </div>

@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || exit;
 
 add_action( 'rest_api_init', function () {
 	register_rest_route( GLP_NS, '/plays', array( 'methods' => 'GET', 'callback' => 'glp_rest_plays', 'permission_callback' => 'glp_can' ) );
-	register_rest_route( GLP_NS, '/plays/import', array( 'methods' => 'POST', 'callback' => 'glp_rest_plays_import', 'permission_callback' => 'glp_can' ) );
+	register_rest_route( GLP_NS, '/plays/import', array( 'methods' => 'POST', 'callback' => 'glp_rest_plays_import', 'permission_callback' => fn() => current_user_can( 'manage_options' ) ) ); // nur der Admin holt Zahlen
 } );
 
 function glp_plays_norm( $title ) {
