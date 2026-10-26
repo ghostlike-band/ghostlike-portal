@@ -1268,6 +1268,26 @@
           <span class="klein pl-note">Spotify-Gesamtzahl laut Spotify-Profil, alle anderen Dienste laut DistroKid und iMusician.</span></dd>
       </dl>`;
     $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · alle Shops · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
+    // EPs/Alben: Plays aller enthaltenen Songs zusammengezählt
+    $('#pl-releases').innerHTML = (d.releases || []).map((r) => {
+      const songs = d.tracks.filter((t) => r.isrcs.includes(t.isrc));
+      if (!songs.length) return '';
+      const daily = songs.reduce((acc, t) => acc.map((v, i) => v + t.daily[i]), new Array(365).fill(0));
+      const tot = plSum(songs.map((t) => t.total)), l7 = plSum(daily.slice(-7)), p7 = plSum(daily.slice(-14, -7)), x = trend(l7, p7), key = 'rel:' + r.title, open = P.open === key;
+      return `<h2 class="meta pl-h">${esc(r.type)}</h2><ul class="pl-list pl-list--rel"><li class="pl-row pl-row--rel ${open ? 'is-open' : ''}">
+        <button type="button" class="pl-row__head" data-pl="${esc(key)}">
+          <span class="pl-row__title"><span class="label">${esc(r.title)}</span><span class="meta pl-row__sub">${songs.length} Songs · seit ${esc(fmt(r.date, { day: '2-digit', month: '2-digit', year: 'numeric' }))}</span></span>
+          <span class="pl-row__spark">${bars(daily.slice(-30), 120, 28, 'pl-bars--spark')}</span>
+          <span class="pl-row__week meta">+${plNum(l7)}${p7 || l7 ? ` <i class="${x >= 0 ? 'is-up' : 'is-down'}">${x >= 0 ? '▲' : '▼'}</i>` : ''}</span>
+          <b class="pl-row__total">${plNum(tot)}</b>
+        </button>
+        ${open ? `<div class="pl-row__detail">
+          <div class="pl-chart__head meta"><span>Plays pro Tag · alle Songs der ${esc(r.type)} · 365 Tage</span><span>max ${plNum(Math.max(...daily))}</span></div>
+          ${bars(daily, 900, 90)}
+          <div class="pl-split meta">${songs.map((t) => `<span>${esc(t.title)} <b>${plNum(t.total)}</b> <span class="meta--hell">${tot ? Math.round((t.total / tot) * 100) : 0} %</span></span>`).join('')}</div>
+        </div>` : ''}
+      </li></ul>`;
+    }).join('');
     $('#pl-list').innerHTML = d.tracks.map((t) => {
       const l7 = plSum(t.daily.slice(-7)), p7 = plSum(t.daily.slice(-14, -7)), x = trend(l7, p7), open = P.open === t.isrc;
       return `<li class="pl-row ${open ? 'is-open' : ''}">
@@ -1287,7 +1307,7 @@
     }).join('');
   }
   const plAdd = (iso, n) => { const x = new Date(iso + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
-  $('#pl-list').addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (!b) return; P.open = P.open === b.dataset.pl ? null : b.dataset.pl; renderPlays(); });
+  ['#pl-list', '#pl-releases'].forEach((sel) => $(sel).addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (!b) return; P.open = P.open === b.dataset.pl ? null : b.dataset.pl; renderPlays(); }));
   if ($('#pl-help-open')) $('#pl-help-open').addEventListener('click', () => { const h = $('#pl-help'); h.open = true; h.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
   // Sync: Das Lesezeichen auf distrokid.com öffnet das Portal (?plays_sync=1) und schickt die Zahlen per postMessage

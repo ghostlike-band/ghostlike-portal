@@ -14,6 +14,18 @@ add_action( 'rest_api_init', function () {
 	register_rest_route( GLP_NS, '/plays/import', array( 'methods' => 'POST', 'callback' => 'glp_rest_plays_import', 'permission_callback' => fn() => current_user_can( 'manage_options' ) ) ); // nur der Admin holt Zahlen
 } );
 
+/** Releases mit mehreren Songs (per ISRC). Bei neuen EPs/Alben hier ergänzen. */
+function glp_plays_releases() {
+	return array(
+		array(
+			'title' => 'The Quiet Collapse',
+			'type'  => 'EP',
+			'date'  => '2026-01-16',
+			'isrcs' => array( 'CH6542570736', 'CH6542570739', 'CH6542570737', 'CH6542570742', 'CH6542570741' ),
+		),
+	);
+}
+
 function glp_plays_norm( $title ) {
 	return preg_replace( '/[^a-z0-9]/', '', strtolower( remove_accents( (string) $title ) ) );
 }
@@ -141,5 +153,6 @@ function glp_rest_plays() {
 	$out['start']     = $start->format( 'Y-m-d' );
 	$out['tracks']    = array_values( $tracks );
 	$out['spotifyAt'] = ! empty( $spall['at'] ) ? wp_date( 'd.m.Y', $spall['at'] ) : '';
+	$out['releases']  = glp_plays_releases();
 	return glp_ok( $out );
 }

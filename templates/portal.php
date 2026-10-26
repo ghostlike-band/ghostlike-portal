@@ -372,6 +372,8 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<div class="pl-banner" id="pl-banner" hidden></div>
 			<div class="pl-top" id="pl-top"></div>
 			<div class="pl-chart" id="pl-chart"></div>
+			<div id="pl-releases"></div>
+			<h2 class="meta pl-h">Einzelne Songs</h2>
 			<ul class="pl-list" id="pl-list"></ul>
 			<?php if ( current_user_can( 'manage_options' ) ) : ?>
 			<details class="k-more" id="pl-help">
