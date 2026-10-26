@@ -1228,7 +1228,7 @@
 
   /* ================= PLAYS ================= */
   const P = { data: null, open: null, done: {} };
-  const PLAYS_SYNC_V = 2; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
+  const PLAYS_SYNC_V = 3; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
   const plNum = (n) => Number(n || 0).toLocaleString('de-DE');
   const plSum = (a) => a.reduce((x, y) => x + y, 0);
   // Balken als SVG, ohne Bibliothek
@@ -1256,8 +1256,9 @@
       <div class="pl-kpis"><span><b>${plNum(all[364])}</b><span class="meta">am ${esc(plDay(d.latest))}</span></span>
         <span><b>${plNum(last7)}</b><span class="meta">7 Tage ${prev7 ? `<i class="${tr >= 0 ? 'is-up' : 'is-down'}">${tr >= 0 ? '▲' : '▼'} ${Math.abs(tr)} %</i>` : ''}</span></span>
         <span><b>${plNum(last30)}</b><span class="meta">30 Tage</span></span></div>
-      <p class="meta meta--hell">Spotify + Apple Music · Stand ${esc(plDay(d.latest))} · zuletzt geholt ${esc(d.synced)}${d.syncedBy ? ' von ' + esc(d.syncedBy) : ''}</p>`;
-    $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
+      <p class="meta meta--hell">Gesamt = Spotify laut Spotify + Apple Music, Deezer, Amazon laut DistroKid und iMusician · Tageswerte bis ${esc(plDay(d.latest))}</p>
+      <p class="meta meta--hell pl-src">${[['distrokid', 'DistroKid'], ['imusician', 'iMusician'], ['spotify', 'Spotify']].map(([k, l]) => `${l}: ${d.synced[k] ? esc(d.synced[k].at) + (d.synced[k].by ? ' (' + esc(d.synced[k].by) + ')' : '') : '<i class="is-down">noch nie</i>'}`).join(' · ')}</p>`;
+    $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · alle Shops · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
     $('#pl-list').innerHTML = d.tracks.map((t) => {
       const l7 = plSum(t.daily.slice(-7)), p7 = plSum(t.daily.slice(-14, -7)), x = trend(l7, p7), open = P.open === t.isrc;
       return `<li class="pl-row ${open ? 'is-open' : ''}">
@@ -1268,9 +1269,10 @@
           <b class="pl-row__total">${plNum(t.total)}</b>
         </button>
         ${open ? `<div class="pl-row__detail">
-          <div class="pl-chart__head meta"><span>Spotify pro Tag · 365 Tage</span><span>max ${plNum(Math.max(...t.daily))}</span></div>
+          <div class="pl-chart__head meta"><span>Plays pro Tag · alle Shops · 365 Tage</span><span>max ${plNum(Math.max(...t.daily))}</span></div>
           ${bars(t.daily, 900, 90)}
-          <div class="pl-split meta"><span>Spotify <b>${plNum(t.spotify)}</b></span><span>Apple Music <b>${plNum(t.apple)}</b></span><span>30 Tage <b>${plNum(plSum(t.daily.slice(-30)))}</b></span><span>Bester Tag <b>${plNum(Math.max(...t.daily))}</b></span></div>
+          <div class="pl-split meta">${t.spotifyAll !== null ? `<span>Spotify gesamt (laut Spotify) <b>${plNum(t.spotifyAll)}</b></span>` : '<span>Spotify gesamt <b>unter 1.000</b> (Spotify zeigt erst ab 1.000)</span>'}${Object.entries(t.shops).map(([k, v]) => `<span>${esc(k)}${k === 'Spotify' ? ' (erfasst)' : ''} <b>${plNum(v)}</b></span>`).join('')}</div>
+          <div class="pl-split meta"><span>30 Tage <b>${plNum(plSum(t.daily.slice(-30)))}</b></span><span>Bester Tag <b>${plNum(Math.max(...t.daily))}</b></span></div>
         </div>` : ''}
       </li>`;
     }).join('');
@@ -1289,8 +1291,8 @@
     const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Übernehme Zahlen …';
     let msg;
     try {
-      const r = await api('plays/import', { method: 'POST', body: { tracks: e.data.tracks } });
-      msg = `✓ ${r.tracks} Songs aktualisiert. Du kannst den DistroKid-Tab schließen.`;
+      const r = await api('plays/import', { method: 'POST', body: { source: e.data.source || 'distrokid', tracks: e.data.tracks, items: e.data.items } });
+      msg = `✓ ${({ distrokid: 'DistroKid', imusician: 'iMusician', spotify: 'Spotify-Gesamtzahlen' })[e.data.source || 'distrokid']}: ${r.tracks} Songs aktualisiert. Du kannst den Tab schließen.`;
       if ((e.data.v || 1) < PLAYS_SYNC_V) msg = 'Dein Sync-Button ist veraltet und zählt nicht alle Versionen eines Songs. Bitte unten unter „Sync-Button einrichten“ den neuen Knopf in die Lesezeichenleiste ziehen (alten löschen) und nochmal klicken.';
       show('plays'); await loadPlays();
     } catch (err) { msg = 'Fehler: ' + err.message; }
@@ -1299,33 +1301,97 @@
     setTimeout(() => { b.hidden = true; }, 8000);
   });
 
+  // Der Sync-Button (Lesezeichen). Läuft NICHT im Portal, sondern auf distrokid.com, app.imusician.pro oder
+  // der Spotify-Künstlerseite: liest dort die Zahlen im eingeloggten Browser und schickt sie per postMessage
+  // an das Portal (O = Portal-Adresse, P = Portal-Seite). Darf nichts aus portal.js benutzen.
+  const PLAYS_SYNC = async (O, P, V) => {
+    const h = location.hostname;
+    const mode = /(^|\.)distrokid\.com$/.test(h) ? 'distrokid' : h === 'app.imusician.pro' ? 'imusician' : h === 'open.spotify.com' ? 'spotify' : '';
+    if (!mode) { alert('GHOSTLIKE Sync: Bitte zuerst DistroKid (Statistiken), iMusician (Analytics) oder die Spotify-Seite von Ghostlike öffnen, dann nochmal klicken.'); return; }
+    const w = window.open(P, 'glsync');
+    const note = (t) => {
+      let b = document.getElementById('glsync');
+      if (!b) { b = document.createElement('div'); b.id = 'glsync'; b.style.cssText = 'position:fixed;z-index:2147483647;top:16px;right:16px;max-width:340px;background:#0A0B0A;color:#ECEEE8;border-left:4px solid #7C9A85;padding:14px 18px;font:14px/1.4 Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.4)'; document.body.appendChild(b); }
+      b.textContent = t;
+    };
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const add = (o, k, v) => { o[k] = (o[k] || 0) + (+v || 0); };
+    const data = { type: 'gl-plays', v: V, id: Date.now(), source: mode };
+    try {
+      if (mode === 'distrokid') {
+        note('GHOSTLIKE Sync · DistroKid: lese Tracks …');
+        const doc = new DOMParser().parseFromString(await (await fetch('/stats/')).text(), 'text/html');
+        const by = {}, tracks = [];
+        for (const o of doc.querySelectorAll('select.trendingFilterTracks option')) {
+          const t = o.textContent.replace(/\s+/g, ' ').trim();
+          if (!/^Ghostlike - /i.test(t) || !o.value || !o.id) continue;
+          if (!by[o.value]) { by[o.value] = { isrc: o.value, ids: [], title: t.replace(/^Ghostlike - /i, '').replace(/ - Single$/i, ''), spotify: {}, apple: {} }; tracks.push(by[o.value]); }
+          if (!by[o.value].ids.includes(o.id)) by[o.value].ids.push(o.id); // gleicher Song als Single und auf der EP
+        }
+        if (!tracks.length) throw new Error('Keine Ghostlike-Tracks gefunden.');
+        const arr = (s, re) => { const m = s.match(re); return m ? JSON.parse(m[1]) : []; };
+        for (const [i, t] of tracks.entries()) {
+          note('GHOSTLIKE Sync · DistroKid: ' + (i + 1) + '/' + tracks.length + ' · ' + t.title);
+          for (const id of t.ids) {
+            const u = '/stats/?type=track&id=' + id + '&upc=undefined&view=' + t.isrc + '&data=';
+            const s = await (await fetch(u + 'streams')).text();
+            const k = s.indexOf('makeChart("trend60day"');
+            (k < 0 ? [] : arr(s.slice(k), /"dataProvider":\s*(\[[^\]]*\])/)).forEach((p) => add(t.spotify, p.category, p['column-1']));
+            const a = await (await fetch(u + 'applemusic')).text();
+            arr(a, /"dataProvider":\s*(\[\s*\{"field"[^\]]*\])/).forEach((p) => { const [m, y] = p.field.split('-'); add(t.apple, '20' + y + '-' + m, p.value); });
+          }
+          delete t.ids;
+        }
+        data.tracks = tracks;
+      } else if (mode === 'imusician') {
+        const C = 'https://connect.imusician.pro/core/v3/trends/';
+        const g = async (u) => { const r = await fetch(C + u, { credentials: 'include' }); if (!r.ok) throw new Error('iMusician antwortet mit ' + r.status + ' – bitte eingeloggt sein.'); return r.json(); };
+        note('GHOSTLIKE Sync · iMusician: lese Tracks …');
+        const list = ((await g('tracks')).items || []).filter((t) => /ghostlike/i.test(t.display_artist || 'ghostlike'));
+        if (!list.length) throw new Error('Keine Ghostlike-Tracks gefunden.');
+        const tracks = [];
+        for (const [i, t] of list.entries()) {
+          const isrc = ((t.isrcs || []).find((x) => x.is_primary) || (t.isrcs || [])[0] || {}).value;
+          if (!isrc) continue;
+          const tr = { isrc, title: t.title, shops: {} };
+          // iMusician liefert höchstens 3 Monate pro Abfrage: rückwärts in Fenstern, bis zweimal nichts mehr kommt
+          let end = new Date(), empty = 0;
+          for (let n = 0; n < 8 && empty < 2; n++) {
+            note('GHOSTLIKE Sync · iMusician: ' + (i + 1) + '/' + list.length + ' · ' + t.title + ' · ' + iso(end).slice(0, 7));
+            const start = new Date(end); start.setDate(start.getDate() - 89);
+            const j = await g('charts/shops?filter.track_id=' + t.id + '&interval=' + iso(start) + ',' + iso(end));
+            let any = false;
+            for (const s of j.items || []) {
+              const d0 = new Date(s.streams.from_to[0] + 'T12:00:00Z');
+              const shop = String(s.shop || '').toLowerCase();
+              s.streams.values.forEach((v, k) => { if (!v) return; any = true; const d = new Date(d0); d.setUTCDate(d.getUTCDate() + k); add(tr.shops[shop] = tr.shops[shop] || {}, iso(d), v); });
+            }
+            empty = any ? 0 : empty + 1;
+            end = new Date(start); end.setDate(end.getDate() - 1);
+          }
+          tracks.push(tr);
+        }
+        data.tracks = tracks;
+      } else {
+        const rows = [...document.querySelectorAll('[data-testid="tracklist-row"]')];
+        if (!/ghostlike/i.test(document.title) || !rows.length) throw new Error('Bitte die Spotify-Künstlerseite von Ghostlike öffnen (Beliebte Songs).');
+        data.items = rows.map((r) => {
+          const a = r.querySelector('a[href*="/track/"]');
+          const c = [...r.querySelectorAll('[role="gridcell"]')].slice(1).map((x) => x.textContent.trim()).find((x) => /^\d{1,3}([.,\s]\d{3})*$/.test(x)); // erste Zelle ist die Platzierung
+          return { title: a ? a.textContent.trim() : '', plays: c ? +c.replace(/\D/g, '') : null };
+        }).filter((x) => x.title && x.plays !== null);
+        if (!data.items.length) throw new Error('Keine Play-Zahlen gefunden.');
+      }
+      note('GHOSTLIKE Sync: sende ans Portal …');
+      let ok = false;
+      window.addEventListener('message', (e) => { if (e.origin === O && e.data && e.data.type === 'gl-plays-ok' && e.data.id === data.id) { ok = true; note(e.data.msg); } });
+      for (let i = 0; i < 60 && !ok; i++) { if (w && !w.closed) w.postMessage(data, O); await new Promise((r) => setTimeout(r, 1000)); }
+      if (!ok) note('Das Portal hat nicht geantwortet. Bitte im Portal eingeloggt sein und nochmal klicken.');
+    } catch (e) { note('GHOSTLIKE Sync – Fehler: ' + e.message); }
+  };
   function bookmarklet() {
     const portal = location.origin + CFG.scope + '?plays_sync=1#plays';
-    const code = `(async()=>{const O=${JSON.stringify(location.origin)},P=${JSON.stringify(portal)};
-if(!/(^|\\.)distrokid\\.com$/.test(location.hostname)){alert('Bitte zuerst distrokid.com öffnen und einloggen, dann nochmal klicken.');return;}
-const w=window.open(P,'glsync');
-const note=t=>{let b=document.getElementById('glsync');if(!b){b=document.createElement('div');b.id='glsync';b.style.cssText='position:fixed;z-index:2147483647;top:16px;right:16px;max-width:340px;background:#0A0B0A;color:#ECEEE8;border-left:4px solid #7C9A85;padding:14px 18px;font:14px/1.4 Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.4)';document.body.appendChild(b);}b.textContent=t;};
-try{note('GHOSTLIKE Sync: lese Tracks …');
-const doc=new DOMParser().parseFromString(await(await fetch('/stats/')).text(),'text/html');
-const by={},tracks=[];
-for(const o of doc.querySelectorAll('select.trendingFilterTracks option')){const t=o.textContent.replace(/\\s+/g,' ').trim();if(!/^Ghostlike - /i.test(t)||!o.value||!o.id)continue;if(!by[o.value]){by[o.value]={isrc:o.value,ids:[],title:t.replace(/^Ghostlike - /i,'').replace(/ - Single$/i,''),spotify:{},apple:{}};tracks.push(by[o.value]);}if(!by[o.value].ids.includes(o.id))by[o.value].ids.push(o.id);}
-if(!tracks.length)throw new Error('Keine Ghostlike-Tracks gefunden.');
-const arr=(h,re)=>{const m=h.match(re);return m?JSON.parse(m[1]):[];};
-const add=(o,k,v)=>{o[k]=(o[k]||0)+(+v||0);};
-for(const [i,t] of tracks.entries()){note('GHOSTLIKE Sync: '+(i+1)+'/'+tracks.length+' · '+t.title);
-for(const id of t.ids){const u='/stats/?type=track&id='+id+'&upc=undefined&view='+t.isrc+'&data=';
-const s=await(await fetch(u+'streams')).text();const k=s.indexOf('makeChart("trend60day"');
-(k<0?[]:arr(s.slice(k),/"dataProvider":\\s*(\\[[^\\]]*\\])/)).forEach(p=>add(t.spotify,p.category,p['column-1']));
-const a=await(await fetch(u+'applemusic')).text();
-arr(a,/"dataProvider":\\s*(\\[\\s*\\{"field"[^\\]]*\\])/).forEach(p=>{const [m,y]=p.field.split('-');add(t.apple,'20'+y+'-'+m,p.value);});}
-delete t.ids;}
-note('GHOSTLIKE Sync: sende ans Portal …');
-const id=Date.now();let ok=false;
-window.addEventListener('message',e=>{if(e.origin===O&&e.data&&e.data.type==='gl-plays-ok'&&e.data.id===id){ok=true;note(e.data.msg);}});
-for(let i=0;i<60&&!ok;i++){if(w&&!w.closed)w.postMessage({type:'gl-plays',v:2,id,tracks},O);await new Promise(r=>setTimeout(r,1000));}
-if(!ok)note('Das Portal hat nicht geantwortet. Bitte im Portal eingeloggt sein und nochmal klicken.');
-}catch(e){note('GHOSTLIKE Sync – Fehler: '+e.message);}})();`;
-    return 'javascript:' + encodeURIComponent(code.replace(/\n/g, ''));
+    return 'javascript:' + encodeURIComponent('(' + PLAYS_SYNC.toString() + ')(' + JSON.stringify(location.origin) + ',' + JSON.stringify(portal) + ',' + PLAYS_SYNC_V + ');void 0');
   }
 
   /* ================= PROFIL ================= */

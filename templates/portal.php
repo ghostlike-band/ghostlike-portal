@@ -374,13 +374,21 @@ $mark = '<svg viewBox="0 0 172 289" aria-hidden="true"><path d="' . esc_attr( $g
 			<details class="k-more" id="pl-help">
 				<summary class="meta">Zahlen aktualisieren · Sync-Button einrichten ▾</summary>
 				<div class="pl-help">
-					<p>Die Zahlen kommen aus <b>DistroKid</b> (Spotify täglich, Apple Music monatlich, von DistroKid geschätzt). DistroKid hat keine Schnittstelle, deshalb holt ein Sync-Button sie aus deinem eingeloggten Browser. Ein Klick alle paar Tage reicht, die Zahlen sammeln sich hier an.</p>
+					<p>Die Zahlen kommen aus drei Quellen. Keine davon hat eine Schnittstelle, deshalb holt ein Sync-Button sie aus deinem eingeloggten Browser. Gleicher Song = gleicher ISRC-Code, die Zahlen werden zusammengezählt.</p>
+					<ul>
+						<li><b>DistroKid</b> (EP „The Quiet Collapse“, The Price We Pay): Spotify täglich, Apple Music monatlich.</li>
+						<li><b>iMusician</b> (Singles Nothing's Okay, Deep Blue Sea): alle Shops täglich, rund 6 Monate rückwirkend.</li>
+						<li><b>Spotify-Künstlerseite</b>: Gesamt-Plays pro Song seit Release. Spotify zeigt erst ab 1.000 Plays eine Zahl.</li>
+					</ul>
 					<ol>
 						<li>Am Computer in Chrome: Lesezeichenleiste einblenden (<span class="meta">⌘ + Shift + B</span>).</li>
-						<li>Diesen Knopf in die Lesezeichenleiste ziehen: <a class="btn btn--klein btn--patina pl-bm" id="pl-bookmarklet" href="#" onclick="return false">GL Plays Sync</a></li>
-						<li>Bei <b>distrokid.com</b> einloggen und in der Leiste auf <b>GL Plays Sync</b> klicken. Das Portal öffnet sich in einem neuen Tab und übernimmt die Zahlen.</li>
+						<li>Diesen Knopf in die Lesezeichenleiste ziehen (einen alten vorher löschen): <a class="btn btn--klein btn--patina pl-bm" id="pl-bookmarklet" href="#" onclick="return false">GL Plays Sync</a></li>
+						<li>Nacheinander öffnen und jeweils auf <b>GL Plays Sync</b> klicken:
+							<a class="link" href="https://distrokid.com/stats/" target="_blank" rel="noopener">DistroKid Statistiken ↗</a> ·
+							<a class="link" href="https://app.imusician.pro/reporting" target="_blank" rel="noopener">iMusician Analytics ↗</a> ·
+							<a class="link" href="https://open.spotify.com/artist/6qHehgWqgvLtEVFTbkBA80" target="_blank" rel="noopener">Spotify Ghostlike ↗</a></li>
 					</ol>
-					<p class="klein">Es werden nur die Ghostlike-Tracks übernommen. Dein DistroKid-Passwort bleibt in deinem Browser, das Portal speichert es nie.</p>
+					<p class="klein">Es werden nur die Ghostlike-Songs übernommen. Deine Passwörter bleiben in deinem Browser, das Portal speichert sie nie. Ein Sync alle paar Tage reicht, die Zahlen sammeln sich hier an.</p>
 				</div>
 			</details>
 		</section>
