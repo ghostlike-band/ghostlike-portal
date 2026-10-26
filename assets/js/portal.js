@@ -1228,6 +1228,7 @@
 
   /* ================= PLAYS ================= */
   const P = { data: null, open: null, done: {} };
+  const PLAYS_SYNC_V = 2; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
   const plNum = (n) => Number(n || 0).toLocaleString('de-DE');
   const plSum = (a) => a.reduce((x, y) => x + y, 0);
   // Balken als SVG, ohne Bibliothek
@@ -1290,6 +1291,7 @@
     try {
       const r = await api('plays/import', { method: 'POST', body: { tracks: e.data.tracks } });
       msg = `✓ ${r.tracks} Songs aktualisiert. Du kannst den DistroKid-Tab schließen.`;
+      if ((e.data.v || 1) < PLAYS_SYNC_V) msg = 'Dein Sync-Button ist veraltet und zählt nicht alle Versionen eines Songs. Bitte unten unter „Sync-Button einrichten“ den neuen Knopf in die Lesezeichenleiste ziehen (alten löschen) und nochmal klicken.';
       show('plays'); await loadPlays();
     } catch (err) { msg = 'Fehler: ' + err.message; }
     b.textContent = msg;
@@ -1305,21 +1307,22 @@ const w=window.open(P,'glsync');
 const note=t=>{let b=document.getElementById('glsync');if(!b){b=document.createElement('div');b.id='glsync';b.style.cssText='position:fixed;z-index:2147483647;top:16px;right:16px;max-width:340px;background:#0A0B0A;color:#ECEEE8;border-left:4px solid #7C9A85;padding:14px 18px;font:14px/1.4 Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.4)';document.body.appendChild(b);}b.textContent=t;};
 try{note('GHOSTLIKE Sync: lese Tracks …');
 const doc=new DOMParser().parseFromString(await(await fetch('/stats/')).text(),'text/html');
-const seen={},tracks=[];
-for(const o of doc.querySelectorAll('select.trendingFilterTracks option')){const t=o.textContent.replace(/\\s+/g,' ').trim();if(!/^Ghostlike - /i.test(t)||!o.value||!o.id||seen[o.value])continue;seen[o.value]=1;tracks.push({isrc:o.value,id:o.id,title:t.replace(/^Ghostlike - /i,'').replace(/ - Single$/i,'')});}
+const by={},tracks=[];
+for(const o of doc.querySelectorAll('select.trendingFilterTracks option')){const t=o.textContent.replace(/\\s+/g,' ').trim();if(!/^Ghostlike - /i.test(t)||!o.value||!o.id)continue;if(!by[o.value]){by[o.value]={isrc:o.value,ids:[],title:t.replace(/^Ghostlike - /i,'').replace(/ - Single$/i,''),spotify:{},apple:{}};tracks.push(by[o.value]);}if(!by[o.value].ids.includes(o.id))by[o.value].ids.push(o.id);}
 if(!tracks.length)throw new Error('Keine Ghostlike-Tracks gefunden.');
 const arr=(h,re)=>{const m=h.match(re);return m?JSON.parse(m[1]):[];};
+const add=(o,k,v)=>{o[k]=(o[k]||0)+(+v||0);};
 for(const [i,t] of tracks.entries()){note('GHOSTLIKE Sync: '+(i+1)+'/'+tracks.length+' · '+t.title);
-const u='/stats/?type=track&id='+t.id+'&upc=undefined&view='+t.isrc+'&data=';
+for(const id of t.ids){const u='/stats/?type=track&id='+id+'&upc=undefined&view='+t.isrc+'&data=';
 const s=await(await fetch(u+'streams')).text();const k=s.indexOf('makeChart("trend60day"');
-t.spotify={};(k<0?[]:arr(s.slice(k),/"dataProvider":\\s*(\\[[^\\]]*\\])/)).forEach(p=>{t.spotify[p.category]=p['column-1'];});
+(k<0?[]:arr(s.slice(k),/"dataProvider":\\s*(\\[[^\\]]*\\])/)).forEach(p=>add(t.spotify,p.category,p['column-1']));
 const a=await(await fetch(u+'applemusic')).text();
-t.apple={};arr(a,/"dataProvider":\\s*(\\[\\s*\\{"field"[^\\]]*\\])/).forEach(p=>{const [m,y]=p.field.split('-');t.apple['20'+y+'-'+m]=p.value;});
-delete t.id;}
+arr(a,/"dataProvider":\\s*(\\[\\s*\\{"field"[^\\]]*\\])/).forEach(p=>{const [m,y]=p.field.split('-');add(t.apple,'20'+y+'-'+m,p.value);});}
+delete t.ids;}
 note('GHOSTLIKE Sync: sende ans Portal …');
 const id=Date.now();let ok=false;
 window.addEventListener('message',e=>{if(e.origin===O&&e.data&&e.data.type==='gl-plays-ok'&&e.data.id===id){ok=true;note(e.data.msg);}});
-for(let i=0;i<60&&!ok;i++){if(w&&!w.closed)w.postMessage({type:'gl-plays',id,tracks},O);await new Promise(r=>setTimeout(r,1000));}
+for(let i=0;i<60&&!ok;i++){if(w&&!w.closed)w.postMessage({type:'gl-plays',v:2,id,tracks},O);await new Promise(r=>setTimeout(r,1000));}
 if(!ok)note('Das Portal hat nicht geantwortet. Bitte im Portal eingeloggt sein und nochmal klicken.');
 }catch(e){note('GHOSTLIKE Sync – Fehler: '+e.message);}})();`;
     return 'javascript:' + encodeURIComponent(code.replace(/\n/g, ''));
