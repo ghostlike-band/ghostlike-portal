@@ -1228,6 +1228,7 @@
 
   /* ================= PLAYS ================= */
   const P = { data: null, open: null, done: {} };
+  const PLAYS_ORIGINS = { 'https://distrokid.com': 'distrokid', 'https://www.distrokid.com': 'distrokid', 'https://app.imusician.pro': 'imusician', 'https://open.spotify.com': 'spotify' };
   const PLAYS_SYNC_V = 4; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
   const plNum = (n) => Number(n || 0).toLocaleString('de-DE');
   const plSum = (a) => a.reduce((x, y) => x + y, 0);
@@ -1283,10 +1284,11 @@
 
   // Sync: Das Lesezeichen auf distrokid.com öffnet das Portal (?plays_sync=1) und schickt die Zahlen per postMessage
   if (new URLSearchParams(location.search).has('plays_sync')) {
-    const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Warte auf die Zahlen von DistroKid …';
+    const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Warte auf die Zahlen von DistroKid, iMusician oder Spotify …';
   }
   window.addEventListener('message', async (e) => {
-    if (e.origin !== 'https://distrokid.com' || !e.data || e.data.type !== 'gl-plays' || P.done[e.data.id]) return;
+    const src = PLAYS_ORIGINS[e.origin]; // jede Quelle darf nur ihre eigenen Zahlen schicken
+    if (!src || !e.data || e.data.type !== 'gl-plays' || (e.data.source || 'distrokid') !== src || P.done[e.data.id]) return;
     P.done[e.data.id] = true;
     const b = $('#pl-banner'); b.hidden = false; b.textContent = 'Übernehme Zahlen …';
     let msg;
