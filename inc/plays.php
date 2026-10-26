@@ -100,7 +100,7 @@ function glp_rest_plays() {
 	$spall  = (array) get_option( 'glp_plays_spotify_all', array() );
 	$when   = function ( $k ) use ( $synced ) {
 		$s = $synced[ $k ] ?? ( $k === 'distrokid' && isset( $synced['at'] ) ? $synced : null ); // altes Format (nur DistroKid)
-		return $s ? array( 'at' => wp_date( 'd.m.Y, H:i', $s['at'] ), 'by' => glp_user_name( $s['by'] ?? 0 ) ) : null;
+		return $s ? array( 'at' => wp_date( 'd.m., H:i', $s['at'] ), 'ts' => (int) $s['at'], 'by' => glp_user_name( $s['by'] ?? 0 ) ) : null;
 	};
 	$latest = $wpdb->get_var( "SELECT MAX(day) FROM $t WHERE service <> 'apple'" ); // phpcs:ignore
 	$out    = array(

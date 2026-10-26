@@ -760,3 +760,13 @@ i.is-down { color: #d9776b; font-style: normal; }
 }
 .pl-help ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .pl-src { margin: 0; }
+.pl-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 4px 0 0; font-size: 13px; color: var(--kalk); align-items: baseline; }
+.pl-info dt { margin: 0; }
+.pl-info dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; min-width: 0; }
+.pl-chips { gap: 6px !important; }
+.pl-chip { border: 1px solid var(--linie-stark); padding: 2px 8px; font-size: 12px; color: var(--kalkweiss); }
+.pl-src { color: var(--kalkweiss); white-space: nowrap; }
+.pl-src.is-stale { color: #d9776b; }
+.pl-src.is-stale::after { content: ' · Sync fällig'; font-family: var(--f-mono); font-size: 11px; }
+.pl-note { flex-basis: 100%; color: var(--flechte); }
+@media (max-width: 600px) { .pl-info { grid-template-columns: 1fr; gap: 2px; } .pl-info dd { margin-bottom: 8px; } }

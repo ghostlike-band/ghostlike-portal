@@ -1252,13 +1252,21 @@
     const all = d.tracks.reduce((acc, t) => acc.map((v, i) => v + t.daily[i]), new Array(365).fill(0));
     const total = plSum(d.tracks.map((t) => t.total)), last7 = plSum(all.slice(-7)), prev7 = plSum(all.slice(-14, -7)), last30 = plSum(all.slice(-30));
     const trend = (a, b) => (b ? Math.round(((a - b) / b) * 100) : 0);
+    const src = [['distrokid', 'DistroKid'], ['imusician', 'iMusician'], ['spotify', 'Spotify-Profil']];
+    const lastSync = src.map(([k]) => d.synced[k]).filter(Boolean).sort((a, b) => b.ts - a.ts)[0];
+    const stale = (x) => Date.now() / 1000 - x.ts > 7 * 86400; // älter als eine Woche: Sync fällig
+    const shops = [...new Set(['Spotify'].concat(...d.tracks.map((t) => Object.keys(t.shops))))];
     const tr = trend(last7, prev7);
     $('#pl-top').innerHTML = `<p class="k-satz">${plNum(total)} <span class="pl-unit">Plays</span></p>
       <div class="pl-kpis"><span><b>${plNum(all[364])}</b><span class="meta">am ${esc(plDay(d.latest))}</span></span>
         <span><b>${plNum(last7)}</b><span class="meta">7 Tage ${prev7 ? `<i class="${tr >= 0 ? 'is-up' : 'is-down'}">${tr >= 0 ? '▲' : '▼'} ${Math.abs(tr)} %</i>` : ''}</span></span>
         <span><b>${plNum(last30)}</b><span class="meta">30 Tage</span></span></div>
-      <p class="meta meta--hell">Gesamt = Spotify laut Spotify + Apple Music, Deezer, Amazon laut DistroKid und iMusician · Tageswerte bis ${esc(plDay(d.latest))}</p>
-      <p class="meta meta--hell pl-src">${[['distrokid', 'DistroKid'], ['imusician', 'iMusician'], ['spotify', 'Spotify']].map(([k, l]) => `${l}: ${d.synced[k] ? esc(d.synced[k].at) + (d.synced[k].by ? ' (' + esc(d.synced[k].by) + ')' : '') : '<i class="is-down">noch nie</i>'}`).join(' · ')}</p>`;
+      <dl class="pl-info">
+        <dt class="meta">Stand</dt><dd>${lastSync ? `Zuletzt aktualisiert ${esc(lastSync.at)} von ${esc(lastSync.by)} · Tageswerte bis ${esc(plDay(d.latest))}` : '–'}</dd>
+        <dt class="meta">Dienste</dt><dd class="pl-chips">${shops.map((x) => `<span class="pl-chip">${esc(x)}</span>`).join('')}</dd>
+        <dt class="meta">Quellen</dt><dd>${src.map(([k, l, what]) => `<span class="pl-src ${!d.synced[k] || stale(d.synced[k]) ? 'is-stale' : ''}">${l} <span class="meta">${d.synced[k] ? esc(d.synced[k].at.split(',')[0]) : 'noch nie'}</span></span>`).join('')}
+          <span class="klein pl-note">Spotify-Gesamtzahl laut Spotify-Profil, alle anderen Dienste laut DistroKid und iMusician.</span></dd>
+      </dl>`;
     $('#pl-chart').innerHTML = `<div class="pl-chart__head meta"><span>Plays pro Tag · alle Shops · 90 Tage</span><span>max ${plNum(Math.max(...all.slice(-90)))}</span></div>${bars(all.slice(-90), 900, 120)}<div class="pl-chart__axis meta"><span>${esc(plDay(plAdd(d.start, 275)))}</span><span>${esc(plDay(d.latest))}</span></div>`;
     $('#pl-list').innerHTML = d.tracks.map((t) => {
       const l7 = plSum(t.daily.slice(-7)), p7 = plSum(t.daily.slice(-14, -7)), x = trend(l7, p7), open = P.open === t.isrc;
