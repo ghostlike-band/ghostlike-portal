@@ -1228,7 +1228,7 @@
 
   /* ================= PLAYS ================= */
   const P = { data: null, open: null, done: {} };
-  const PLAYS_SYNC_V = 3; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
+  const PLAYS_SYNC_V = 4; // bei Änderungen am Lesezeichen erhöhen, dann weist das Portal auf den neuen Knopf hin
   const plNum = (n) => Number(n || 0).toLocaleString('de-DE');
   const plSum = (a) => a.reduce((x, y) => x + y, 0);
   // Balken als SVG, ohne Bibliothek
@@ -1391,7 +1391,9 @@
   };
   function bookmarklet() {
     const portal = location.origin + CFG.scope + '?plays_sync=1#plays';
-    return 'javascript:' + encodeURIComponent('(' + PLAYS_SYNC.toString() + ')(' + JSON.stringify(location.origin) + ',' + JSON.stringify(portal) + ',' + PLAYS_SYNC_V + ');void 0');
+    // Eine Zeile ohne Kommentare: Chrome kann beim Ziehen in die Lesezeichenleiste Zeilenumbrüche verlieren
+    const fn = PLAYS_SYNC.toString().replace(/\s\/\/ [^\n]*/g, '').replace(/\n\s*/g, ' ');
+    return 'javascript:' + encodeURIComponent('(' + fn + ')(' + JSON.stringify(location.origin) + ',' + JSON.stringify(portal) + ',' + PLAYS_SYNC_V + ');void 0');
   }
 
   /* ================= PROFIL ================= */
