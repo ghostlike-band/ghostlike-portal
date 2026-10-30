@@ -787,7 +787,10 @@
         localLog(`${s.title} v${S.audio[s.id][0] ? S.audio[s.id][0].v : 1} hochgeladen`);
         renderAll(); renderVersions();
         toast(json.bpm_applied ? `Hochgeladen ✓ · ${json.bpm} BPM aus der Datei eingetragen` : json.bpm ? `Hochgeladen ✓ · Datei: ${json.bpm} BPM` : 'Hochgeladen ✓');
-      } else toast(json.message || 'Upload fehlgeschlagen');
+      } else {
+        toast(json.message || `Upload fehlgeschlagen (Fehler ${xhr.status})`);
+        if (!json.message) api('state').then((st) => { S.audio[s.id] = (st.audio || {})[s.id] || []; renderVersions(); renderAll(); }).catch(() => {}); // Datei kann trotz Fehler angekommen sein
+      }
     };
     xhr.onerror = () => { busy--; bar.hidden = true; toast('Keine Verbindung, bitte erneut versuchen'); };
     xhr.send(fd);

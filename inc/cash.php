@@ -348,7 +348,7 @@ function glp_cash_notify_pending( $id ) {
 	if ( ! $row ) {
 		return;
 	}
-	glp_push_cash_pending( $row );
+	glp_push_safely( 'glp_push_cash_pending', $row );
 	$to_ids = (int) $row->to_id ? array( (int) $row->to_id ) : array_values( array_diff( array_column( glp_members(), 'id' ), array( (int) $row->from_id ) ) );
 	$from   = glp_user_name( $row->from_id );
 	$amount = glp_cash_money( (int) $row->amount );

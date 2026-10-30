@@ -121,11 +121,25 @@ function glp_push_encrypt( $payload, $p256dh, $auth ) {
  * Push an ein Mitglied (alle seine Geräte). $type = Anlass aus glp_push_types().
  * $msg = [ 'title' => …, 'body' => …, 'url' => …, 'tag' => … ]
  */
+/** Geräte eines Mitglieds. Ohne Abo ist das Feld leer, (array) '' wäre aber [''] und kein leeres Array. */
+function glp_push_subs( $uid ) {
+	return array_filter( (array) get_user_meta( $uid, 'glp_push_subs', true ), 'is_array' );
+}
+
+/** Push darf nie die eigentliche Aktion (Upload, Zahlung …) scheitern lassen. */
+function glp_push_safely( $fn, ...$args ) {
+	try {
+		$fn( ...$args );
+	} catch ( Throwable $e ) {
+		error_log( 'GHOSTLIKE Push: ' . $e->getMessage() ); // phpcs:ignore
+	}
+}
+
 function glp_push_user( $uid, $type, $msg, $force = false ) {
 	if ( ! function_exists( 'openssl_pkey_derive' ) || ( ! $force && empty( glp_push_prefs( $uid )[ $type ] ) ) ) {
 		return 0;
 	}
-	$subs = (array) get_user_meta( $uid, 'glp_push_subs', true );
+	$subs = glp_push_subs( $uid );
 	if ( ! $subs ) {
 		return 0;
 	}
@@ -175,7 +189,7 @@ function glp_rest_push_state() {
 	$v   = glp_vapid();
 	return glp_ok( array(
 		'key'     => $v ? $v['public'] : '',
-		'devices' => count( (array) get_user_meta( $uid, 'glp_push_subs', true ) ),
+		'devices' => count( glp_push_subs( $uid ) ),
 		'prefs'   => glp_push_prefs( $uid ),
 		'types'   => glp_push_types(),
 	) );
@@ -189,7 +203,7 @@ function glp_rest_push_subscribe( WP_REST_Request $req ) {
 		return glp_err( 'Ungültiges Push-Abo.' );
 	}
 	$uid           = get_current_user_id();
-	$subs          = array_filter( (array) get_user_meta( $uid, 'glp_push_subs', true ) );
+	$subs          = glp_push_subs( $uid );
 	$subs[ md5( $endpoint ) ] = array(
 		'endpoint' => $endpoint,
 		'p256dh'   => sanitize_text_field( $keys['p256dh'] ),
@@ -203,9 +217,9 @@ function glp_rest_push_subscribe( WP_REST_Request $req ) {
 
 function glp_rest_push_unsubscribe( WP_REST_Request $req ) {
 	$uid  = get_current_user_id();
-	$subs = (array) get_user_meta( $uid, 'glp_push_subs', true );
+	$subs = glp_push_subs( $uid );
 	unset( $subs[ md5( (string) $req->get_param( 'endpoint' ) ) ] );
-	update_user_meta( $uid, 'glp_push_subs', array_filter( $subs ) );
+	update_user_meta( $uid, 'glp_push_subs', $subs );
 	return glp_rest_push_state();
 }
 
